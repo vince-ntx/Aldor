@@ -4,8 +4,10 @@ use std::fmt;
 // use diesel::r2d2::Error;
 use diesel::result::DatabaseErrorKind::UniqueViolation;
 use diesel::result::Error::{DatabaseError, NotFound};
+use uuid::Error as uuidError;
 
 // an error that can occur in this crate
+#[derive(Debug)]
 pub struct Error {
 	kind: ErrorKind,
 }
@@ -51,6 +53,12 @@ impl From<diesel::result::Error> for Error {
 		};
 		
 		Self::new(kind)
+	}
+}
+
+impl From<uuidError> for Error {
+	fn from(e: uuidError) -> Self {
+		Self::new(ErrorKind::RecordNotFound)
 	}
 }
 //

@@ -2,24 +2,39 @@
 extern crate diesel;
 
 use std::env;
+use std::error::Error;
+use std::io::Write;
+use std::str::FromStr;
 
-use diesel::pg::types::sql_types::Uuid;
+use bigdecimal::BigDecimal;
+use diesel::{deserialize, Queryable, QueryableByName, serialize};
+use diesel::deserialize::FromSql;
+use diesel::pg::Pg;
 use diesel::prelude::*;
-use diesel::Queryable;
-use diesel::sql_types::*;
+use diesel::serialize::{Output, ToSql};
+use diesel::sql_types::{Text, Varchar};
 use serde::{Deserialize, Serialize};
 use uuid;
 
 use dotenv::dotenv;
-use schema::users;
+use schema::*;
 
 pub mod schema;
 mod error;
-// pub mod models;
+
+/// Connect to PostgreSQL database
+pub fn connection() -> PgConnection {
+	dotenv().ok();
+	
+	let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+	
+	PgConnection::establish(&database_url).expect(&format!("error connecting to {}", database_url))
+}
 
 type Result<T> = std::result::Result<T, error::Error>;
 
-#[derive(Queryable, Debug)]
+#[derive(Queryable, Identifiable, PartialEq, Debug)]
+// #[table_name = "users"]
 pub struct User {
 	pub id: uuid::Uuid,
 	pub email: String,
@@ -58,15 +73,74 @@ impl<'a> UserRepo<'a> {
 			.map_err(Into::into)
 	}
 	
-	pub fn find_user(&self, key: UserKey<'a>) -> Result<User> {}
+	pub fn find_user(&self, key: UserKey<'a>) -> Result<User> {
+		match key {
+			UserKey::ID(id) => {
+				users::table
+					.find(id)
+					.first::<User>(self.db)
+					.map_err(Into::into)
+			}
+			UserKey::Email(email) => {
+				users::table
+					.filter(users::email.eq(email))
+					.first::<User>(self.db)
+					.map_err(Into::into)
+			}
+		}
+	}
+}
+
+pub enum UserKey<'a> {
+	ID(&'a uuid::Uuid),
+	Email(&'a str),
 }
 
 
-/// Connect to PostgreSQL database
-pub fn create_postgres_connection() -> PgConnection {
-	dotenv().ok();
-	
-	let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-	
-	PgConnection::establish(&database_url).expect(&format!("error connecting to {}", database_url))
+#[derive(Queryable, Identifiable, Associations, PartialEq, Debug)]
+#[belongs_to(User)]
+struct Account {
+	id: uuid::Uuid,
+	user_id: uuid::Uuid,
+	account_type: AccountType,
+	amount: BigDecimal,
 }
+
+#[derive(AsExpression, FromSqlRow, PartialEq, Debug)]
+#[sql_type = "Varchar"]
+pub enum AccountType {
+	Checking,
+	Savings,
+}
+
+impl AccountType {
+	pub fn as_str(&self) -> &str {
+		match self {
+			AccountType::Checking => "checking",
+			AccountType::Savings => "savings",
+		}
+	}
+}
+
+
+impl ToSql<Varchar, Pg> for AccountType {
+	fn to_sql<W: std::io::Write>(&self, out: &mut Output<W, Pg>) -> serialize::Result {
+		ToSql::<Varchar, Pg>::to_sql(self.as_str(), out)
+	}
+}
+
+impl FromSql<Varchar, Pg> for AccountType {
+	fn from_sql(bytes: Option<&[u8]>) -> deserialize::Result<Self> {
+		let o = bytes.ok_or_else(|| "error deserializing from varchar")?;
+		let x = std::str::from_utf8(o)?;
+		match x {
+			"checking" => Ok(AccountType::Checking),
+			"savings" => Ok(AccountType::Savings),
+			_ => Err("invalid account type".into())
+		}
+	}
+}
+
+
+
+
