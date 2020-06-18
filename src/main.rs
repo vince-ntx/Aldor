@@ -16,7 +16,7 @@ async fn main() {
 	env::set_var("RUST_LOG", "debug");
 	pretty_env_logger::init();
 	
-	let conn = connection();
+	let conn = get_db_connection();
 	
 	let userRepo = UserRepo::new(&conn);
 	

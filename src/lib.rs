@@ -24,7 +24,7 @@ pub mod schema;
 mod error;
 
 /// Connect to PostgreSQL database
-pub fn connection() -> PgConnection {
+pub fn get_db_connection() -> PgConnection {
 	dotenv().ok();
 	
 	let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
@@ -105,6 +105,7 @@ pub struct Account {
 	account_type: AccountType,
 	amount: BigDecimal,
 	created_at: SystemTime,
+	is_open: bool,
 }
 
 
@@ -166,6 +167,18 @@ impl<'a> AccountRepo<'a> {
 			.get_result(self.db)
 			.map_err(Into::into)
 	}
+	
+	pub fn find_accounts(&self, user_id: uuid::Uuid) -> Result<Vec<Account>> {
+		accounts::table
+			.filter(accounts::user_id.eq(user_id))
+			.select((accounts::all_columns))
+			.load::<Account>(self.db)
+			.map_err(Into::into)
+	}
+	
+	// pub fn find_account(&self, account_id: uuid::Uuid) -> Result<Account> {}
+	//
+	// pub fn close_account(&self, account_id: uuid::Uuid) -> Result<Account> {}
 }
 
 

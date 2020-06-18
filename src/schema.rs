@@ -5,6 +5,7 @@ table! {
         account_type -> Varchar,
         amount -> Numeric,
         created_at -> Timestamp,
+        is_open -> Bool,
     }
 }
 

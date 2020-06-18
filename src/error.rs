@@ -61,12 +61,3 @@ impl From<uuidError> for Error {
 		Self::new(ErrorKind::RecordNotFound)
 	}
 }
-//
-// impl From<BlockingError<ErrorKind>> for ErrorKind {
-// 	fn from(e: BlockingError<ErrorKind>) -> Self {
-// 		match e {
-// 			BlockingError::Error(inner) => inner,
-// 			BlockingError::Canceled => ErrorKind::OperationCanceled,
-// 		}
-// 	}
-// }
