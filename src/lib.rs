@@ -5,6 +5,7 @@ use std::env;
 use std::error::Error;
 use std::io::Write;
 use std::str::FromStr;
+use std::time::SystemTime;
 
 use bigdecimal::BigDecimal;
 use diesel::{deserialize, Queryable, QueryableByName, serialize};
@@ -34,7 +35,6 @@ pub fn connection() -> PgConnection {
 type Result<T> = std::result::Result<T, error::Error>;
 
 #[derive(Queryable, Identifiable, PartialEq, Debug)]
-// #[table_name = "users"]
 pub struct User {
 	pub id: uuid::Uuid,
 	pub email: String,
@@ -99,11 +99,21 @@ pub enum UserKey<'a> {
 
 #[derive(Queryable, Identifiable, Associations, PartialEq, Debug)]
 #[belongs_to(User)]
-struct Account {
+pub struct Account {
 	id: uuid::Uuid,
 	user_id: uuid::Uuid,
 	account_type: AccountType,
 	amount: BigDecimal,
+	created_at: SystemTime,
+}
+
+
+#[derive(Insertable)]
+#[table_name = "accounts"]
+pub struct NewAccount {
+	pub user_id: uuid::Uuid,
+	pub account_type: AccountType,
+	pub amount: BigDecimal,
 }
 
 #[derive(AsExpression, FromSqlRow, PartialEq, Debug)]
@@ -141,6 +151,22 @@ impl FromSql<Varchar, Pg> for AccountType {
 	}
 }
 
+pub struct AccountRepo<'a> {
+	db: &'a PgConnection,
+}
+
+impl<'a> AccountRepo<'a> {
+	pub fn new(db: &'a PgConnection) -> Self {
+		AccountRepo { db }
+	}
+	
+	pub fn create_account(&self, new_account: NewAccount) -> Result<Account> {
+		diesel::insert_into(accounts::table)
+			.values(&new_account)
+			.get_result(self.db)
+			.map_err(Into::into)
+	}
+}
 
 
 

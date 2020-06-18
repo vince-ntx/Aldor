@@ -1,7 +1,7 @@
 table! {
     accounts (id) {
         id -> Uuid,
-        user_id -> Nullable<Uuid>,
+        user_id -> Uuid,
         account_type -> Varchar,
         amount -> Numeric,
         created_at -> Timestamp,
