@@ -2,15 +2,16 @@
 #[macro_use]
 extern crate diesel;
 
+use std::borrow::Borrow;
 use std::env;
 use std::error::Error;
 use std::io::Write;
+use std::ops::{Add, Neg};
 use std::str::FromStr;
 use std::time::SystemTime;
 
 use bigdecimal::BigDecimal;
-use diesel::{deserialize, Queryable, QueryableByName, serialize};
-use diesel::deserialize::FromSql;
+use diesel::{deserialize::*, deserialize, Queryable, QueryableByName, serialize};
 use diesel::pg::Pg;
 use diesel::prelude::*;
 use diesel::serialize::{Output, ToSql};
@@ -94,7 +95,7 @@ impl<'a> UserRepo<'a> {
 }
 
 pub enum UserKey<'a> {
-	ID(&'a uuid::Uuid),
+	ID(uuid::Uuid),
 	Email(&'a str),
 }
 
@@ -186,16 +187,17 @@ impl<'a> AccountRepo<'a> {
 			.map_err(Into::into)
 	}
 	
-	pub fn transact(&self, k: TransactionKey, account_id: &uuid::Uuid, value: BigDecimal) ->
+	pub fn transact(&self, k: TransactionKey, account_id: &uuid::Uuid, value: &BigDecimal) ->
 	Result<Account> {
-		let change = match k {
+		let neg_value = value.neg();
+		let v = match k {
 			TransactionKey::Deposit => value,
-			TransactionKey::Withdraw => -value,
+			TransactionKey::Withdraw => &neg_value,
 		};
 		
 		diesel::update(accounts::table)
 			.filter(accounts::id.eq(account_id))
-			.set(accounts::amount.eq(accounts::amount + change))
+			.set(accounts::amount.eq(accounts::amount + v))
 			.get_result(self.db)
 			.map_err(Into::into)
 	}
@@ -239,8 +241,8 @@ impl FromSql<Varchar, Pg> for TransactionKey {
 #[derive(Insertable)]
 #[table_name = "transactions"]
 pub struct NewTransaction {
-	pub from_id: uuid::Uuid,
-	pub to_id: uuid::Uuid,
+	pub from_id: Option<uuid::Uuid>,
+	pub to_id: Option<uuid::Uuid>,
 	pub transaction_type: TransactionKey,
 	pub amount: BigDecimal,
 }
@@ -248,9 +250,9 @@ pub struct NewTransaction {
 #[derive(Queryable, Identifiable, PartialEq, Debug)]
 pub struct Transaction {
 	pub id: uuid::Uuid,
-	pub from_id: uuid::Uuid,
-	pub to_id: uuid::Uuid,
-	pub transaction: TransactionKey,
+	pub from_id: Option<uuid::Uuid>,
+	pub to_id: Option<uuid::Uuid>,
+	pub transaction_type: TransactionKey,
 	pub amount: BigDecimal,
 	pub timestamp: SystemTime,
 }
@@ -259,13 +261,18 @@ pub struct TransactionRepo<'a> {
 	db: &'a PgConnection,
 }
 
-// impl TransactionRepo {
-// pub fn create(&self, account_id: &uuid::Uuid, value: BigDecimal) -> Result<Account> {
-// 	diesel::insert_into(transactions::table)
-// 		.
-//
-// }
-// }
+impl<'a> TransactionRepo<'a> {
+	pub fn new(db: &'a PgConnection) -> Self {
+		TransactionRepo { db }
+	}
+	
+	pub fn create(&self, new_transaction: NewTransaction) -> Result<Transaction> {
+		diesel::insert_into(transactions::table)
+			.values(&new_transaction)
+			.get_result::<Transaction>(self.db)
+			.map_err(Into::into)
+	}
+}
 
 
 

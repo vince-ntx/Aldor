@@ -12,8 +12,8 @@ table! {
 table! {
     transactions (id) {
         id -> Uuid,
-        from_id -> Uuid,
-        to_id -> Uuid,
+        from_id -> Nullable<Uuid>,
+        to_id -> Nullable<Uuid>,
         transaction_type -> Varchar,
         amount -> Numeric,
         created_at -> Timestamp,
