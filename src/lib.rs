@@ -1,3 +1,4 @@
+#![allow(warnings)]
 #[macro_use]
 extern crate diesel;
 
@@ -16,6 +17,7 @@ use diesel::serialize::{Output, ToSql};
 use diesel::sql_types::{Text, Varchar};
 use serde::{Deserialize, Serialize};
 use uuid;
+use uuid::Uuid;
 
 use dotenv::dotenv;
 use schema::*;
@@ -176,13 +178,94 @@ impl<'a> AccountRepo<'a> {
 			.map_err(Into::into)
 	}
 	
-	pub fn deposit(&self, account_id: &uuid::Uuid, deposit_amount: BigDecimal) -> Result<Account> {
+	pub fn find_account(&self, account_id: &uuid::Uuid) -> Result<Account> {
+		accounts::table
+			.filter(accounts::id.eq(account_id))
+			.select((accounts::all_columns))
+			.first::<Account>(self.db)
+			.map_err(Into::into)
+	}
+	
+	pub fn transact(&self, k: TransactionKey, account_id: &uuid::Uuid, value: BigDecimal) ->
+	Result<Account> {
+		let change = match k {
+			TransactionKey::Deposit => value,
+			TransactionKey::Withdraw => -value,
+		};
+		
 		diesel::update(accounts::table)
 			.filter(accounts::id.eq(account_id))
-			.set(accounts::amount.eq(accounts::amount + deposit_amount))
+			.set(accounts::amount.eq(accounts::amount + change))
 			.get_result(self.db)
 			.map_err(Into::into)
 	}
 }
+
+#[derive(Serialize, Debug, AsExpression, FromSqlRow, PartialEq)]
+#[sql_type = "Varchar"]
+pub enum TransactionKey {
+	Deposit,
+	Withdraw,
+}
+
+impl TransactionKey {
+	pub fn as_str(&self) -> &str {
+		match self {
+			TransactionKey::Deposit => "deposit",
+			TransactionKey::Withdraw => "withdraw",
+		}
+	}
+}
+
+
+impl ToSql<Varchar, Pg> for TransactionKey {
+	fn to_sql<W: std::io::Write>(&self, out: &mut Output<W, Pg>) -> serialize::Result {
+		ToSql::<Varchar, Pg>::to_sql(self.as_str(), out)
+	}
+}
+
+impl FromSql<Varchar, Pg> for TransactionKey {
+	fn from_sql(bytes: Option<&[u8]>) -> deserialize::Result<Self> {
+		let o = bytes.ok_or_else(|| "error deserializing from varchar")?;
+		let x = std::str::from_utf8(o)?;
+		match x {
+			"deposit" => Ok(TransactionKey::Deposit),
+			"withdraw" => Ok(TransactionKey::Withdraw),
+			_ => Err("invalid transaction key".into())
+		}
+	}
+}
+
+#[derive(Insertable)]
+#[table_name = "transactions"]
+pub struct NewTransaction {
+	pub from_id: uuid::Uuid,
+	pub to_id: uuid::Uuid,
+	pub transaction_type: TransactionKey,
+	pub amount: BigDecimal,
+}
+
+#[derive(Queryable, Identifiable, PartialEq, Debug)]
+pub struct Transaction {
+	pub id: uuid::Uuid,
+	pub from_id: uuid::Uuid,
+	pub to_id: uuid::Uuid,
+	pub transaction: TransactionKey,
+	pub amount: BigDecimal,
+	pub timestamp: SystemTime,
+}
+
+pub struct TransactionRepo<'a> {
+	db: &'a PgConnection,
+}
+
+// impl TransactionRepo {
+// pub fn create(&self, account_id: &uuid::Uuid, value: BigDecimal) -> Result<Account> {
+// 	diesel::insert_into(transactions::table)
+// 		.
+//
+// }
+// }
+
 
 

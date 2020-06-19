@@ -10,6 +10,17 @@ table! {
 }
 
 table! {
+    transactions (id) {
+        id -> Uuid,
+        from_id -> Uuid,
+        to_id -> Uuid,
+        transaction_type -> Varchar,
+        amount -> Numeric,
+        created_at -> Timestamp,
+    }
+}
+
+table! {
     users (id) {
         id -> Uuid,
         email -> Varchar,
@@ -23,5 +34,6 @@ joinable!(accounts -> users (user_id));
 
 allow_tables_to_appear_in_same_query!(
     accounts,
+    transactions,
     users,
 );

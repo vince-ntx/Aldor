@@ -1,7 +1,4 @@
 use std::borrow::Borrow;
-use std::fmt::Debug;
-use std::ops::Add;
-use std::sync::Once;
 
 use bigdecimal::{BigDecimal, Zero};
 use diesel::{ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl, Table};
@@ -14,16 +11,11 @@ struct Suite<'a> {
 	user_repo: UserRepo<'a>,
 	account_repo: AccountRepo<'a>,
 	conn: &'a PgConnection,
-	// users: Vec<User>,
 }
 
 impl<'a> Suite<'a> {
 	pub fn setup(conn: &'a PgConnection) -> Self {
 		Suite::teardown(conn);
-		// println!("--- seeding ---");
-		// let users = Suite::create_users(conn);
-		// users.iter().map(|u| Suite::create_accounts(conn, u.id));
-		
 		
 		let mut suite = Suite {
 			user_repo: UserRepo::new(conn),
@@ -36,7 +28,7 @@ impl<'a> Suite<'a> {
 	
 	fn teardown(conn: &PgConnection) {
 		let tables = vec!["accounts", "users"];
-		println!("--- clean up ---");
+		println!("\n--- clean up ---");
 		for table in tables {
 			diesel::sql_query(format!("DELETE FROM {}", table))
 				.execute(conn)
@@ -180,7 +172,7 @@ fn find_accounts_for_user() {
 }
 
 #[test]
-fn deposit_into_account() {
+fn account_deposit_and_withdrawal() {
 	let conn = get_db_connection();
 	let suite = Suite::setup(&conn);
 	let user_ids: Vec<_> = suite.create_users().iter().map(|u| u.id).collect();
@@ -189,13 +181,38 @@ fn deposit_into_account() {
 	let accounts = suite.create_accounts(&vec![user_id]);
 	let account = accounts.first().unwrap();
 	
+	// deposit
 	let deposit_amount = 500;
-	let got = suite.account_repo.deposit(&account.id, BigDecimal::from(deposit_amount))
-		.unwrap();
+	let got = suite.account_repo.transact(TransactionKey::Deposit, &account.id, BigDecimal::from(deposit_amount)).unwrap();
 	
 	let want_amount = (&account.amount) + BigDecimal::from(deposit_amount);
-	assert_eq!(got.amount, want_amount)
+	assert_eq!(got.amount, want_amount);
+	
+	let withdraw_amount = 250;
+	let got = suite.account_repo.transact(TransactionKey::Withdraw, &account.id, BigDecimal::from
+		(withdraw_amount)).unwrap();
+	
+	let want_amount = (&want_amount) - BigDecimal::from(withdraw_amount);
+	assert_eq!(got.amount, want_amount);
 }
 
+#[test]
+fn transaction() {
+	let conn = get_db_connection();
+	let suite = Suite::setup(&conn);
+	let user_ids: Vec<_> = suite.create_users().iter().map(|u| u.id).collect();
+	
+	let user_id = *user_ids.get(0).unwrap();
+	let accounts = suite.create_accounts(&vec![user_id]);
+	
+	diesel::insert_into(transactions::table)
+		.values(&NewTransaction {
+			from_id: accounts.get(0).unwrap().id,
+			to_id: accounts.get(1).unwrap().id,
+			transaction_type: TransactionKey::Deposit,
+			amount: BigDecimal::from(30),
+		})
+		.execute(&conn);
+}
 
 

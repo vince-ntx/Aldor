@@ -1,3 +1,5 @@
+#![allow(warnings)]
+
 use std::{env, fmt};
 
 use diesel::prelude::*;
