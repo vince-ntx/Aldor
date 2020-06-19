@@ -100,12 +100,12 @@ pub enum UserKey<'a> {
 #[derive(Queryable, Identifiable, Associations, PartialEq, Debug)]
 #[belongs_to(User)]
 pub struct Account {
-	id: uuid::Uuid,
-	user_id: uuid::Uuid,
-	account_type: AccountType,
-	amount: BigDecimal,
-	created_at: SystemTime,
-	is_open: bool,
+	pub id: uuid::Uuid,
+	pub user_id: uuid::Uuid,
+	pub account_type: AccountType,
+	pub amount: BigDecimal,
+	pub created_at: SystemTime,
+	pub is_open: bool,
 }
 
 
@@ -168,7 +168,7 @@ impl<'a> AccountRepo<'a> {
 			.map_err(Into::into)
 	}
 	
-	pub fn find_accounts(&self, user_id: uuid::Uuid) -> Result<Vec<Account>> {
+	pub fn find_accounts(&self, user_id: &uuid::Uuid) -> Result<Vec<Account>> {
 		accounts::table
 			.filter(accounts::user_id.eq(user_id))
 			.select((accounts::all_columns))
@@ -176,10 +176,13 @@ impl<'a> AccountRepo<'a> {
 			.map_err(Into::into)
 	}
 	
-	// pub fn find_account(&self, account_id: uuid::Uuid) -> Result<Account> {}
-	//
-	// pub fn close_account(&self, account_id: uuid::Uuid) -> Result<Account> {}
+	pub fn deposit(&self, account_id: &uuid::Uuid, deposit_amount: BigDecimal) -> Result<Account> {
+		diesel::update(accounts::table)
+			.filter(accounts::id.eq(account_id))
+			.set(accounts::amount.eq(accounts::amount + deposit_amount))
+			.get_result(self.db)
+			.map_err(Into::into)
+	}
 }
-
 
 
