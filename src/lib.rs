@@ -23,8 +23,13 @@ use uuid::Uuid;
 use dotenv::dotenv;
 use schema::*;
 
-pub mod schema;
-mod error;
+mod schema;
+mod errors;
+mod account;
+mod user;
+mod transaction;
+mod bank;
+
 
 /// Connect to PostgreSQL database
 pub fn get_db_connection() -> PgConnection {
@@ -35,244 +40,85 @@ pub fn get_db_connection() -> PgConnection {
 	PgConnection::establish(&database_url).expect(&format!("error connecting to {}", database_url))
 }
 
-type Result<T> = std::result::Result<T, error::Error>;
+type Result<T> = std::result::Result<T, errors::Error>;
 
-#[derive(Queryable, Identifiable, PartialEq, Debug)]
-pub struct User {
-	pub id: uuid::Uuid,
-	pub email: String,
-	pub first_name: String,
-	pub family_name: String,
-	pub phone_number: Option<String>,
-	/* TODO: add additional info here including
-	- date of birth
-	- home address
-	 */
-}
-
-#[derive(Insertable)]
-#[table_name = "users"]
-pub struct NewUser<'a> {
-	pub email: &'a str,
-	pub first_name: &'a str,
-	pub family_name: &'a str,
-	pub phone_number: Option<&'a str>,
-}
-
-pub struct UserRepo<'a> {
+pub struct BankingService<'a> {
 	db: &'a PgConnection,
+	user_repo: &'a user::UserRepo<'a>,
+	account_repo: &'a account::AccountRepo<'a>,
+	transaction_repo: &'a transaction::Repo<'a>,
 }
 
-impl<'a> UserRepo<'a> {
-	pub fn new(db: &'a PgConnection) -> Self {
-		UserRepo { db }
+impl<'a> BankingService<'a> {
+	pub fn deposit(&self, account_id: &uuid::Uuid, amount: &BigDecimal) { //todo:: add result
+		self.db.transaction::<(), diesel::result::Error, _>(|| {
+			self.transaction_repo.create(transaction::NewTransaction {
+				from_id: None,
+				to_id: Some(account_id.clone()),
+				transaction_type: transaction::Type::Deposit,
+				amount: amount.to_owned(),
+			});
+			
+			self.account_repo.transact(transaction::Type::Deposit, account_id, amount);
+			
+			Ok(())
+		});
 	}
 	
-	pub fn create_user(&self, new_user: NewUser) -> Result<User> {
-		use schema::users::dsl::*;
-		diesel::insert_into(users)
-			.values(&new_user)
-			.get_result(self.db)
-			.map_err(Into::into)
+	pub fn withdraw(&self, account_id: &uuid::Uuid, amount: &BigDecimal) -> Result<account::Account> {
+		let mut account = self.account_repo.find_account(account_id).expect("get account");
+		if account.amount.lt(amount) {}
+		
+		
+		self.db.transaction::<(), errors::Error, _>(|| {
+			self.transaction_repo.create(transaction::NewTransaction {
+				from_id: Some(account_id.clone()),
+				to_id: None,
+				transaction_type: transaction::Type::Withdraw,
+				amount: amount.to_owned(),
+			})?;
+			
+			account = self.account_repo.transact(transaction::Type::Withdraw, account_id, amount)?;
+			
+			Ok(())
+		});
+		
+		Ok(account)
 	}
 	
-	pub fn find_user(&self, key: UserKey<'a>) -> Result<User> {
-		match key {
-			UserKey::ID(id) => {
-				users::table
-					.find(id)
-					.first::<User>(self.db)
-					.map_err(Into::into)
-			}
-			UserKey::Email(email) => {
-				users::table
-					.filter(users::email.eq(email))
-					.first::<User>(self.db)
-					.map_err(Into::into)
-			}
-		}
-	}
+	fn t(&self) {}
 }
 
-pub enum UserKey<'a> {
-	ID(uuid::Uuid),
-	Email(&'a str),
-}
-
-
-#[derive(Queryable, Identifiable, Associations, PartialEq, Debug)]
-#[belongs_to(User)]
-pub struct Account {
-	pub id: uuid::Uuid,
-	pub user_id: uuid::Uuid,
-	pub account_type: AccountType,
-	pub amount: BigDecimal,
-	pub created_at: SystemTime,
-	pub is_open: bool,
-}
-
-
-#[derive(Insertable)]
-#[table_name = "accounts"]
-pub struct NewAccount {
-	pub user_id: uuid::Uuid,
-	pub account_type: AccountType,
-	pub amount: BigDecimal,
-}
-
-#[derive(AsExpression, FromSqlRow, PartialEq, Debug)]
-#[sql_type = "Varchar"]
-pub enum AccountType {
-	Checking,
-	Savings,
-}
-
-impl AccountType {
-	pub fn as_str(&self) -> &str {
-		match self {
-			AccountType::Checking => "checking",
-			AccountType::Savings => "savings",
-		}
-	}
-}
-
-
-impl ToSql<Varchar, Pg> for AccountType {
-	fn to_sql<W: std::io::Write>(&self, out: &mut Output<W, Pg>) -> serialize::Result {
-		ToSql::<Varchar, Pg>::to_sql(self.as_str(), out)
-	}
-}
-
-impl FromSql<Varchar, Pg> for AccountType {
-	fn from_sql(bytes: Option<&[u8]>) -> deserialize::Result<Self> {
-		let o = bytes.ok_or_else(|| "error deserializing from varchar")?;
-		let x = std::str::from_utf8(o)?;
-		match x {
-			"checking" => Ok(AccountType::Checking),
-			"savings" => Ok(AccountType::Savings),
-			_ => Err("invalid account type".into())
-		}
-	}
-}
-
-pub struct AccountRepo<'a> {
-	db: &'a PgConnection,
-}
-
-impl<'a> AccountRepo<'a> {
-	pub fn new(db: &'a PgConnection) -> Self {
-		AccountRepo { db }
-	}
+#[cfg(test)]
+mod tests {
+	use super::*;
 	
-	pub fn create_account(&self, new_account: NewAccount) -> Result<Account> {
-		diesel::insert_into(accounts::table)
-			.values(&new_account)
-			.get_result(self.db)
-			.map_err(Into::into)
-	}
-	
-	pub fn find_accounts(&self, user_id: &uuid::Uuid) -> Result<Vec<Account>> {
-		accounts::table
-			.filter(accounts::user_id.eq(user_id))
-			.select((accounts::all_columns))
-			.load::<Account>(self.db)
-			.map_err(Into::into)
-	}
-	
-	pub fn find_account(&self, account_id: &uuid::Uuid) -> Result<Account> {
-		accounts::table
-			.filter(accounts::id.eq(account_id))
-			.select((accounts::all_columns))
-			.first::<Account>(self.db)
-			.map_err(Into::into)
-	}
-	
-	pub fn transact(&self, k: TransactionKey, account_id: &uuid::Uuid, value: &BigDecimal) ->
-	Result<Account> {
-		let neg_value = value.neg();
-		let v = match k {
-			TransactionKey::Deposit => value,
-			TransactionKey::Withdraw => &neg_value,
+	#[test]
+	fn t() {
+		let conn = get_db_connection();
+		let user_repo = user::UserRepo::new(&conn);
+		let account_repo = account::AccountRepo::new(&conn);
+		let transaction_repo = transaction::Repo::new(&conn);
+		let banking_service = BankingService {
+			db: &conn,
+			user_repo: &user_repo,
+			account_repo: &account_repo,
+			transaction_repo: &transaction_repo,
 		};
 		
-		diesel::update(accounts::table)
-			.filter(accounts::id.eq(account_id))
-			.set(accounts::amount.eq(accounts::amount + v))
-			.get_result(self.db)
-			.map_err(Into::into)
+		let user = user_repo.create_user(user::NewUser {
+			email: "gmail",
+			first_name: "vince",
+			family_name: "xiao",
+			phone_number: None,
+		}).unwrap();
+		let account = account_repo.create_account(account::NewAccount {
+			user_id: user.id,
+			account_type: account::AccountType::Checking,
+		}).unwrap();
+		
+		banking_service.deposit(&account.id, &BigDecimal::from(300))
 	}
 }
-
-#[derive(Serialize, Debug, AsExpression, FromSqlRow, PartialEq)]
-#[sql_type = "Varchar"]
-pub enum TransactionKey {
-	Deposit,
-	Withdraw,
-}
-
-impl TransactionKey {
-	pub fn as_str(&self) -> &str {
-		match self {
-			TransactionKey::Deposit => "deposit",
-			TransactionKey::Withdraw => "withdraw",
-		}
-	}
-}
-
-
-impl ToSql<Varchar, Pg> for TransactionKey {
-	fn to_sql<W: std::io::Write>(&self, out: &mut Output<W, Pg>) -> serialize::Result {
-		ToSql::<Varchar, Pg>::to_sql(self.as_str(), out)
-	}
-}
-
-impl FromSql<Varchar, Pg> for TransactionKey {
-	fn from_sql(bytes: Option<&[u8]>) -> deserialize::Result<Self> {
-		let o = bytes.ok_or_else(|| "error deserializing from varchar")?;
-		let x = std::str::from_utf8(o)?;
-		match x {
-			"deposit" => Ok(TransactionKey::Deposit),
-			"withdraw" => Ok(TransactionKey::Withdraw),
-			_ => Err("invalid transaction key".into())
-		}
-	}
-}
-
-#[derive(Insertable)]
-#[table_name = "transactions"]
-pub struct NewTransaction {
-	pub from_id: Option<uuid::Uuid>,
-	pub to_id: Option<uuid::Uuid>,
-	pub transaction_type: TransactionKey,
-	pub amount: BigDecimal,
-}
-
-#[derive(Queryable, Identifiable, PartialEq, Debug)]
-pub struct Transaction {
-	pub id: uuid::Uuid,
-	pub from_id: Option<uuid::Uuid>,
-	pub to_id: Option<uuid::Uuid>,
-	pub transaction_type: TransactionKey,
-	pub amount: BigDecimal,
-	pub timestamp: SystemTime,
-}
-
-pub struct TransactionRepo<'a> {
-	db: &'a PgConnection,
-}
-
-impl<'a> TransactionRepo<'a> {
-	pub fn new(db: &'a PgConnection) -> Self {
-		TransactionRepo { db }
-	}
-	
-	pub fn create(&self, new_transaction: NewTransaction) -> Result<Transaction> {
-		diesel::insert_into(transactions::table)
-			.values(&new_transaction)
-			.get_result::<Transaction>(self.db)
-			.map_err(Into::into)
-	}
-}
-
 
 

@@ -9,9 +9,9 @@ use bank_api::*;
 use bank_api::schema::*;
 
 struct Suite<'a> {
-	user_repo: UserRepo<'a>,
-	account_repo: AccountRepo<'a>,
-	transaction_repo: TransactionRepo<'a>,
+	user_repo: &'a UserRepo<'a>,
+	account_repo: &'a AccountRepo<'a>,
+	transaction_repo: &'a TransactionRepo<'a>,
 	conn: &'a PgConnection,
 }
 
@@ -25,9 +25,9 @@ impl<'a> Suite<'a> {
 		Suite::teardown(conn);
 		
 		let mut suite = Suite {
-			user_repo: UserRepo::new(conn),
-			account_repo: AccountRepo::new(conn),
-			transaction_repo: TransactionRepo::new(conn),
+			user_repo: &UserRepo::new(conn),
+			account_repo: &AccountRepo::new(conn),
+			transaction_repo: &TransactionRepo::new(conn),
 			conn,
 		};
 		
@@ -77,35 +77,10 @@ impl<'a> Suite<'a> {
 	}
 	
 	
-	// fn create_accounts(&self, user_ids: &Vec<uuid::Uuid>) -> Vec<Account> {
-	// 	let mut input: Vec<NewAccount> = Vec::new();
-	// 	for &id in user_ids {
-	// 		input.append(vec![
-	// 			NewAccount {
-	// 				user_id: id,
-	// 				account_type: AccountType::Checking,
-	// 				amount: BigDecimal::from(1000),
-	// 			},
-	// 			NewAccount {
-	// 				user_id: id,
-	// 				account_type: AccountType::Savings,
-	// 				amount: BigDecimal::from(1000),
-	// 			}
-	// 		].as_mut()
-	// 		);
-	// 	}
-	//
-	// 	diesel::insert_into(accounts::table)
-	// 		.values(&input)
-	// 		.get_results(self.conn)
-	// 		.unwrap()
-	// }
-	
 	fn create_account(&self, account_type: AccountType, user_id: uuid::Uuid) -> Account {
 		let payload = NewAccount {
 			user_id,
 			account_type,
-			amount: BigDecimal::from(1000),
 		};
 		
 		diesel::insert_into(accounts::table)
@@ -173,7 +148,6 @@ fn create_account() {
 	let new_account = NewAccount {
 		user_id: user.id,
 		account_type: AccountType::Checking,
-		amount: bigdecimal::BigDecimal::from(100.0),
 	};
 	
 	let want = suite.account_repo.create_account(new_account).unwrap();
@@ -255,3 +229,4 @@ fn create_transaction() {
 	
 	assert_eq!(got, want);
 }
+

@@ -28,7 +28,6 @@ pub enum ErrorKind {
 	RecordAlreadyExists,
 	RecordNotFound,
 	DatabaseError(diesel::result::Error),
-	OperationCanceled,
 }
 
 impl fmt::Display for Error {
@@ -37,7 +36,6 @@ impl fmt::Display for Error {
 			ErrorKind::RecordAlreadyExists => write!(f, "this record violates a unique constraint"),
 			ErrorKind::RecordNotFound => write!(f, "this record does not exist"),
 			ErrorKind::DatabaseError(e) => write!(f, "database error: {:?}", e),
-			ErrorKind::OperationCanceled => write!(f, "the running operating was cancelled")
 		}
 	}
 }
@@ -56,8 +54,8 @@ impl From<diesel::result::Error> for Error {
 	}
 }
 
-impl From<uuidError> for Error {
-	fn from(e: uuidError) -> Self {
-		Self::new(ErrorKind::RecordNotFound)
-	}
-}
+// impl From<uuidError> for Error {
+// 	fn from(e: uuidError) -> Self {
+// 		Self::new(ErrorKind::RecordNotFound)
+// 	}
+// }
