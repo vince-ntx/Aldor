@@ -6,36 +6,41 @@ use diesel::result::DatabaseErrorKind::UniqueViolation;
 use diesel::result::Error::{DatabaseError, NotFound};
 use uuid::Error as uuidError;
 
+use crate::account;
+
 // an error that can occur in this crate
 #[derive(Debug)]
 pub struct Error {
-	kind: ErrorKind,
+	kind: Kind,
 }
 
 impl Error {
-	pub(crate) fn new(kind: ErrorKind) -> Error {
+	pub(crate) fn new(kind: Kind) -> Error {
 		Error { kind }
 	}
 	
-	pub fn kind(&self) -> &ErrorKind {
+	pub fn kind(&self) -> &Kind {
 		&self.kind
 	}
 }
 
 /// The kind of an error that can occur.
 #[derive(Debug)]
-pub enum ErrorKind {
+pub enum Kind {
 	RecordAlreadyExists,
 	RecordNotFound,
 	DatabaseError(diesel::result::Error),
+	InadequateFunds,
 }
 
 impl fmt::Display for Error {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match &self.kind {
-			ErrorKind::RecordAlreadyExists => write!(f, "this record violates a unique constraint"),
-			ErrorKind::RecordNotFound => write!(f, "this record does not exist"),
-			ErrorKind::DatabaseError(e) => write!(f, "database error: {:?}", e),
+			Kind::RecordAlreadyExists => write!(f, "this record violates a unique constraint"),
+			Kind::RecordNotFound => write!(f, "this record does not exist"),
+			// Kind::DatabaseError(e) => write!(f, "database error: {:?}", e),
+			Kind::DatabaseError(e) => write!(f, "database error: {:?}", e),
+			Kind::InadequateFunds => write!(f, "not enough funds in account")
 		}
 	}
 }
@@ -43,19 +48,14 @@ impl fmt::Display for Error {
 impl From<diesel::result::Error> for Error {
 	fn from(e: diesel::result::Error) -> Self {
 		let kind = match e {
-			DatabaseError(UniqueViolation, _) => ErrorKind::RecordAlreadyExists,
-			NotFound => ErrorKind::RecordNotFound,
+			DatabaseError(UniqueViolation, _) => Kind::RecordAlreadyExists,
+			NotFound => Kind::RecordNotFound,
 			
 			// catch-all database error
-			_ => ErrorKind::DatabaseError(e),
+			_ => Kind::DatabaseError(e),
 		};
 		
 		Self::new(kind)
 	}
 }
 
-// impl From<uuidError> for Error {
-// 	fn from(e: uuidError) -> Self {
-// 		Self::new(ErrorKind::RecordNotFound)
-// 	}
-// }

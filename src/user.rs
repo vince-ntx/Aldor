@@ -1,44 +1,17 @@
 use diesel::PgConnection;
 use diesel::prelude::*;
 
-use crate::Result;
+use crate::{Result, User};
 use crate::schema;
 use crate::schema::users;
 
-#[derive(Queryable, Identifiable, PartialEq, Debug)]
-pub struct User {
-	pub id: uuid::Uuid,
-	pub email: String,
-	pub first_name: String,
-	pub family_name: String,
-	pub phone_number: Option<String>,
-	/* TODO: add additional info here including
-	- date of birth
-	- home address
-	 */
-}
-
-#[derive(Insertable)]
-#[table_name = "users"]
-pub struct NewUser<'a> {
-	pub email: &'a str,
-	pub first_name: &'a str,
-	pub family_name: &'a str,
-	pub phone_number: Option<&'a str>,
-}
-
-pub struct UserRepo<'a> {
+pub struct Repo<'a> {
 	db: &'a PgConnection,
 }
 
-pub enum UserKey<'a> {
-	ID(uuid::Uuid),
-	Email(&'a str),
-}
-
-impl<'a> UserRepo<'a> {
+impl<'a> Repo<'a> {
 	pub fn new(db: &'a PgConnection) -> Self {
-		UserRepo { db }
+		Repo { db }
 	}
 	
 	pub fn create_user(&self, new_user: NewUser) -> Result<User> {
@@ -67,5 +40,18 @@ impl<'a> UserRepo<'a> {
 	}
 }
 
+#[derive(Insertable)]
+#[table_name = "users"]
+pub struct NewUser<'a> {
+	pub email: &'a str,
+	pub first_name: &'a str,
+	pub family_name: &'a str,
+	pub phone_number: Option<&'a str>,
+}
+
+pub enum UserKey<'a> {
+	ID(uuid::Uuid),
+	Email(&'a str),
+}
 
 
