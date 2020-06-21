@@ -4,8 +4,8 @@ use crate::repos::common::*;
 
 #[test]
 fn insert_user() {
-	let conn = get_db_connection();
-	let suite = Suite::setup(&conn);
+	let fixture = Fixture::new();
+	let suite = Suite::setup(&fixture);
 	let user = suite.user_repo.create_user(NewUser {
 		email: "example@gmail.com",
 		first_name: "Tom",
@@ -13,17 +13,15 @@ fn insert_user() {
 		phone_number: Some("555-5555"),
 	}).unwrap();
 	
-	let got_user = users::table.find(user.id).first::<User>(&conn).unwrap();
+	let got_user = users::table.find(user.id).first::<User>(&fixture.conn).unwrap();
 	assert_eq!(got_user, user)
 }
 
 #[test]
 fn find_user_with_key() {
-	let conn = get_db_connection();
-	let suite = Suite::setup(&conn);
-	let users = suite.create_users();
-	
-	let user = users.get(TestUsers::email_vince).unwrap();
+	let fixture = Fixture::new();
+	let suite = Suite::setup(&fixture);
+	let user = fixture.create_user();
 	
 	let email = user.email.borrow();
 	let id = user.id;
@@ -39,7 +37,7 @@ fn find_user_with_key() {
 		let got = suite.user_repo.find_user(user_key)
 			.expect("found user");
 		
-		assert_eq!(*user, got)
+		assert_eq!(user, got)
 	}
 }
 

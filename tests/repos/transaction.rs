@@ -2,9 +2,9 @@ use crate::repos::common::*;
 
 #[test]
 fn create_transaction() {
-	let conn = get_db_connection();
-	let suite = Suite::setup(&conn);
-	let user = suite.create_user();
+	let fixture = Fixture::new();
+	let suite = Suite::setup(&fixture);
+	let user = fixture.create_user();
 	
 	let checking = suite.create_account(AccountType::Checking, &user);
 	

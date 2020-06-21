@@ -2,11 +2,9 @@ use crate::repos::common::*;
 
 #[test]
 fn create_account() {
-	let conn = get_db_connection();
-	let suite = Suite::setup(&conn);
-	let users = suite.create_users();
-	
-	let user = users.get(TestUsers::email_vince).unwrap();
+	let fixture = Fixture::new();
+	let suite = Suite::setup(&fixture);
+	let user = fixture.create_user();
 	
 	let new_account = NewAccount {
 		user_id: user.id,
@@ -15,15 +13,15 @@ fn create_account() {
 	
 	let want = suite.account_repo.create_account(new_account).unwrap();
 	
-	let got = accounts::table.find(want.id).first::<Account>(&conn).unwrap();
+	let got = accounts::table.find(want.id).first::<Account>(&fixture.conn).unwrap();
 	assert_eq!(want, got)
 }
 
 #[test]
 fn find_accounts_for_user() {
-	let conn = get_db_connection();
-	let suite = Suite::setup(&conn);
-	let user = suite.create_user();
+	let fixture = Fixture::new();
+	let suite = Suite::setup(&fixture);
+	let user = fixture.create_user();
 	
 	let mut want = Vec::new();
 	let checking = suite.create_account(AccountType::Checking, &user);
@@ -38,9 +36,9 @@ fn find_accounts_for_user() {
 
 #[test]
 fn account_deposit_and_withdrawal() {
-	let conn = get_db_connection();
-	let suite = Suite::setup(&conn);
-	let user = suite.create_user();
+	let fixture = Fixture::new();
+	let suite = Suite::setup(&fixture);
+	let user = fixture.create_user();
 	
 	let checking = suite.create_account(AccountType::Checking, &user);
 	

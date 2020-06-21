@@ -3,7 +3,7 @@ use diesel::PgConnection;
 
 use bank_api::*;
 
-use crate::repos::common::{Suite as RepoSuite, TestUsers};
+use crate::repos::common::{Fixture, Suite as RepoSuite, TestUsers};
 
 struct Suite<'a> {
 	bank_service: BankService<'a>,
@@ -13,7 +13,7 @@ impl<'a> Suite<'a> {
 	pub fn new(repos: &'a RepoSuite) -> Self {
 		Suite {
 			bank_service: BankService::new(NewBankService {
-				db: &repos.conn,
+				db: &repos.fixture.conn,
 				user_repo: &repos.user_repo,
 				account_repo: &repos.account_repo,
 				transaction_repo: &repos.transaction_repo,
@@ -25,13 +25,12 @@ impl<'a> Suite<'a> {
 
 #[test]
 fn deposit() {
-	let conn = get_db_connection();
-	let repos = RepoSuite::setup(&conn);
+	let mut fixture = Fixture::new();
+	let repos = RepoSuite::setup(&fixture);
 	let suite = Suite::new(&repos);
-	let users = repos.create_users();
+	let user = fixture.create_user();
 	
-	let user = users.get(TestUsers::email_vince).unwrap();
-	let account_id = repos.create_account(AccountType::Checking, user).id;
+	let account_id = repos.create_account(AccountType::Checking, &user).id;
 	
 	let deposit_amount = BigDecimal::from(300);
 	let got = suite.bank_service.deposit(&account_id, &deposit_amount).unwrap();
@@ -41,10 +40,10 @@ fn deposit() {
 
 #[test]
 fn withdraw() {
-	let conn = get_db_connection();
-	let repos = RepoSuite::setup(&conn);
+	let mut fixture = Fixture::new();
+	let repos = RepoSuite::setup(&fixture);
 	let suite = Suite::new(&repos);
-	let (user, account) = repos.create_user_and_account();
+	let (user, account) = fixture.create_user_and_account();
 	
 	let deposit_amount = BigDecimal::from(500);
 	repos.account_repo.transact(TransactionType::Deposit, &account.id, &deposit_amount);
@@ -57,10 +56,10 @@ fn withdraw() {
 
 #[test]
 fn withdraw_invalid_funds_err() {
-	let conn = get_db_connection();
-	let repos = RepoSuite::setup(&conn);
+	let mut fixture = Fixture::new();
+	let repos = RepoSuite::setup(&fixture);
 	let suite = Suite::new(&repos);
-	let (user, account) = repos.create_user_and_account();
+	let (user, account) = fixture.create_user_and_account();
 }
 
 
