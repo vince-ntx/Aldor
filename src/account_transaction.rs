@@ -8,8 +8,8 @@ use diesel::prelude::*;
 use diesel::serialize::{Output, ToSql};
 use diesel::sql_types::Varchar;
 
-use crate::{PgPool, Result, Transaction, TransactionType};
-use crate::schema::transactions;
+use crate::{AccountTransaction, BankTransactionType, PgPool, Result};
+use crate::schema::account_transactions;
 
 pub struct Repo {
 	db: PgPool
@@ -20,22 +20,20 @@ impl Repo {
 		Repo { db }
 	}
 	
-	pub fn create(&self, new_transaction: NewTransaction) -> Result<Transaction> {
+	pub fn transfer(&self, new_transaction: NewAccountTransaction) -> Result<AccountTransaction> {
 		let conn = &self.db.get()?;
-		diesel::insert_into(transactions::table)
+		diesel::insert_into(account_transactions::table)
 			.values(&new_transaction)
-			.get_result::<Transaction>(conn)
+			.get_result::<>(conn)
 			.map_err(Into::into)
 	}
 }
 
 #[derive(Insertable)]
-#[table_name = "transactions"]
-pub struct NewTransaction {
-	pub from_id: Option<uuid::Uuid>,
-	pub to_id: Option<uuid::Uuid>,
-	pub transaction_type: TransactionType,
-	pub amount: BigDecimal,
+#[table_name = "account_transactions"]
+pub struct NewAccountTransaction<'a> {
+	pub sender_id: &'a uuid::Uuid,
+	pub receiver_id: &'a uuid::Uuid,
+	pub amount: &'a BigDecimal,
 }
-
 

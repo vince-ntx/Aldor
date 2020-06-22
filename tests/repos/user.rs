@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 
-use crate::repos::common::*;
+use crate::common::*;
 
 #[test]
 fn insert_user() {
@@ -20,7 +20,7 @@ fn insert_user() {
 #[test]
 fn find_user_with_key() {
 	let mut fixture = Fixture::new();
-	let user = fixture.create_user();
+	let user = fixture.user_factory.bob();
 	
 	let suite = Suite::setup();
 	

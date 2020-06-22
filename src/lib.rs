@@ -24,16 +24,18 @@ use dotenv::dotenv;
 use schema::*;
 
 pub use crate::account::*;
+pub use crate::bank_transaction::*;
 pub use crate::error::*;
 pub use crate::schema::*;
-pub use crate::transaction::*;
 pub use crate::user::*;
 
 mod schema;
 pub mod error;
 pub mod account;
 pub mod user;
-pub mod transaction;
+pub mod bank_transaction;
+pub mod account_transaction;
+pub mod vault;
 
 type Result<T> = std::result::Result<T, error::Error>;
 pub type PgPool = r2d2::Pool<ConnectionManager<PgConnection>>;
@@ -54,16 +56,19 @@ pub fn get_db_connection() -> PgPool {
 pub struct NewBankService<'a> {
 	pub db: PgPool,
 	pub user_repo: &'a user::Repo,
+	pub vault_repo: &'a vault::Repo,
 	pub account_repo: &'a account::Repo,
-	pub transaction_repo: &'a transaction::Repo,
+	pub transaction_repo: &'a bank_transaction::Repo,
 }
 
 pub struct BankService<'a> {
-	db: PgPool,
 	//todo: abstract this out into a trait
+	db: PgPool,
 	user_repo: &'a user::Repo,
 	account_repo: &'a account::Repo,
-	transaction_repo: &'a transaction::Repo,
+	vault_repo: &'a vault::Repo,
+	transaction_repo: &'a bank_transaction::Repo,
+	
 }
 
 impl<'a> BankService<'a> {
@@ -72,27 +77,29 @@ impl<'a> BankService<'a> {
 			db: n.db,
 			user_repo: n.user_repo,
 			account_repo: n.account_repo,
+			vault_repo: n.vault_repo,
 			transaction_repo: n.transaction_repo,
 		}
 	}
 	
-	pub fn deposit(&self, account_id: &uuid::Uuid, amount: &BigDecimal) -> Result<Account> { //todo:: add result
+	pub fn deposit(&self, account_id: &uuid::Uuid, vault_name: &str, amount: &BigDecimal) -> Result<Account> { //todo:: add result
 		let conn = &self.db.get()?;
 		conn.transaction::<Account, error::Error, _>(|| {
-			self.transaction_repo.create(transaction::NewTransaction {
-				from_id: None,
-				to_id: Some(account_id.clone()),
-				transaction_type: TransactionType::Deposit,
-				amount: amount.to_owned(),
+			self.transaction_repo.create(bank_transaction::NewBankTransaction {
+				account_id,
+				vault_name,
+				transaction_type: BankTransactionType::Deposit,
+				amount,
 			})?;
 			
-			let account = self.account_repo.transact(TransactionType::Deposit, account_id, amount)?;
+			let account = self.account_repo.transact(BankTransactionType::Deposit, account_id, amount)?;
+			self.vault_repo.transact(BankTransactionType::Deposit, vault_name, amount)?;
 			
 			Ok(account)
 		})
 	}
 	
-	pub fn withdraw(&self, account_id: &uuid::Uuid, amount: &BigDecimal) -> Result<Account> {
+	pub fn withdraw(&self, account_id: &uuid::Uuid, vault_name: &str, amount: &BigDecimal) -> Result<Account> {
 		let mut account = self.account_repo.find_account(account_id).expect("get account");
 		if account.amount.lt(amount) {
 			return Err(Error::new(Kind::InadequateFunds));
@@ -100,14 +107,15 @@ impl<'a> BankService<'a> {
 		
 		let conn = &self.db.get()?;
 		conn.transaction::<(), error::Error, _>(|| {
-			self.transaction_repo.create(transaction::NewTransaction {
-				from_id: Some(account_id.clone()),
-				to_id: None,
-				transaction_type: TransactionType::Withdraw,
-				amount: amount.to_owned(),
+			self.transaction_repo.create(bank_transaction::NewBankTransaction {
+				account_id,
+				vault_name,
+				transaction_type: BankTransactionType::Withdraw,
+				amount,
 			})?;
 			
-			account = self.account_repo.transact(TransactionType::Withdraw, account_id, amount)?;
+			account = self.account_repo.transact(BankTransactionType::Withdraw, account_id, amount)?;
+			self.vault_repo.transact(BankTransactionType::Withdraw, vault_name, amount)?;
 			
 			Ok(())
 		});
@@ -116,6 +124,7 @@ impl<'a> BankService<'a> {
 	}
 }
 
+#[derive(Queryable, PartialEq, Debug)]
 pub struct Vault {
 	pub name: String,
 	pub amount: BigDecimal,
@@ -181,45 +190,54 @@ impl FromSql<Varchar, Pg> for AccountType {
 }
 
 #[derive(Queryable, Identifiable, PartialEq, Debug)]
-pub struct Transaction {
+pub struct BankTransaction {
 	pub id: uuid::Uuid,
-	pub from_id: Option<uuid::Uuid>,
-	pub to_id: Option<uuid::Uuid>,
-	pub transaction_type: TransactionType,
+	pub account_id: uuid::Uuid,
+	pub vault_name: String,
+	pub transaction_type: BankTransactionType,
 	pub amount: BigDecimal,
-	pub timestamp: SystemTime,
+	pub created_at: SystemTime,
 }
 
 #[derive(Debug, AsExpression, FromSqlRow, PartialEq)]
 #[sql_type = "Varchar"]
-pub enum TransactionType {
+pub enum BankTransactionType {
 	Deposit,
 	Withdraw,
 }
 
-impl TransactionType {
+impl BankTransactionType {
 	pub fn as_str(&self) -> &str {
 		match self {
-			TransactionType::Deposit => "deposit",
-			TransactionType::Withdraw => "withdraw",
+			BankTransactionType::Deposit => "deposit",
+			BankTransactionType::Withdraw => "withdraw",
 		}
 	}
 }
 
-impl ToSql<Varchar, Pg> for TransactionType {
+impl ToSql<Varchar, Pg> for BankTransactionType {
 	fn to_sql<W: std::io::Write>(&self, out: &mut Output<W, Pg>) -> serialize::Result {
 		ToSql::<Varchar, Pg>::to_sql(self.as_str(), out)
 	}
 }
 
-impl FromSql<Varchar, Pg> for TransactionType {
+impl FromSql<Varchar, Pg> for BankTransactionType {
 	fn from_sql(bytes: Option<&[u8]>) -> deserialize::Result<Self> {
 		let o = bytes.ok_or_else(|| "error deserializing from varchar")?;
 		let x = std::str::from_utf8(o)?;
 		match x {
-			"deposit" => Ok(TransactionType::Deposit),
-			"withdraw" => Ok(TransactionType::Withdraw),
+			"deposit" => Ok(BankTransactionType::Deposit),
+			"withdraw" => Ok(BankTransactionType::Withdraw),
 			_ => Err("invalid transaction key".into())
 		}
 	}
+}
+
+#[derive(Queryable, Identifiable, PartialEq, Debug)]
+pub struct AccountTransaction {
+	pub id: uuid::Uuid,
+	pub sender_id: uuid::Uuid,
+	pub receiver_id: uuid::Uuid,
+	pub amount: BigDecimal,
+	pub created_at: SystemTime,
 }

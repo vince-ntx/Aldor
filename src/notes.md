@@ -5,9 +5,10 @@ Build a bank to receives deposits and issue loans.
 ## Features
 - open, close an Account
     - fetch accounts
+- send funds between users
 - make deposits/withdrawals
-- get a loan
 - earn a profit for the bank
+- get a loan
 
 ## Objects
 ### Accounts

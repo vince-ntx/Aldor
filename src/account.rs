@@ -14,7 +14,7 @@ use diesel::{
 	sql_types::Varchar,
 };
 
-use crate::{Account, AccountType, error, PgPool, Result, schema::*, TransactionType};
+use crate::{Account, AccountType, BankTransactionType, error, PgPool, Result, schema::*};
 
 #[derive(Insertable)]
 #[table_name = "accounts"]
@@ -58,13 +58,13 @@ impl Repo {
 			.map_err(Into::into)
 	}
 	
-	pub fn transact(&self, k: TransactionType, account_id: &uuid::Uuid, value: &BigDecimal) ->
+	pub fn transact(&self, k: BankTransactionType, account_id: &uuid::Uuid, value: &BigDecimal) ->
 	Result<Account> {
 		let conn = &self.db.get()?;
 		let neg_value = value.neg();
 		let v = match k {
-			TransactionType::Deposit => value,
-			TransactionType::Withdraw => &neg_value,
+			BankTransactionType::Deposit => value,
+			BankTransactionType::Withdraw => &neg_value,
 		};
 		
 		diesel::update(accounts::table)
