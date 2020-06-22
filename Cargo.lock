@@ -41,6 +41,7 @@ dependencies = [
  "dotenv",
  "log 0.4.8",
  "pretty_env_logger",
+ "r2d2",
  "serde",
  "serde_json",
  "tokio",

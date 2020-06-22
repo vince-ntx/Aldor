@@ -2,8 +2,8 @@ use crate::repos::common::*;
 
 #[test]
 fn create_account() {
-	let fixture = Fixture::new();
-	let suite = Suite::setup(&fixture);
+	let mut fixture = Fixture::new();
+	let suite = Suite::setup();
 	let user = fixture.create_user();
 	
 	let new_account = NewAccount {
@@ -13,19 +13,19 @@ fn create_account() {
 	
 	let want = suite.account_repo.create_account(new_account).unwrap();
 	
-	let got = accounts::table.find(want.id).first::<Account>(&fixture.conn).unwrap();
+	let got = accounts::table.find(want.id).first::<Account>(&fixture.conn()).unwrap();
 	assert_eq!(want, got)
 }
 
 #[test]
 fn find_accounts_for_user() {
-	let fixture = Fixture::new();
-	let suite = Suite::setup(&fixture);
+	let mut fixture = Fixture::new();
+	let suite = Suite::setup();
 	let user = fixture.create_user();
 	
 	let mut want = Vec::new();
-	let checking = suite.create_account(AccountType::Checking, &user);
-	let savings = suite.create_account(AccountType::Savings, &user);
+	let checking = fixture.create_checking_account(&user);
+	let savings = fixture.create_checking_account(&user);
 	want.push(checking);
 	want.push(savings);
 	
@@ -36,11 +36,11 @@ fn find_accounts_for_user() {
 
 #[test]
 fn account_deposit_and_withdrawal() {
-	let fixture = Fixture::new();
-	let suite = Suite::setup(&fixture);
+	let mut fixture = Fixture::new();
+	let suite = Suite::setup();
 	let user = fixture.create_user();
 	
-	let checking = suite.create_account(AccountType::Checking, &user);
+	let checking = fixture.create_checking_account(&user);
 	
 	// deposit
 	let deposit_amount = BigDecimal::from(500);

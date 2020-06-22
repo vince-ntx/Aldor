@@ -10,9 +10,10 @@ use std::str::FromStr;
 use std::time::SystemTime;
 
 use bigdecimal::BigDecimal;
-use diesel::{deserialize::*, deserialize, Queryable, QueryableByName, serialize};
+use diesel::{deserialize::*, deserialize, Queryable, QueryableByName, r2d2, serialize};
 pub use diesel::pg::Pg;
 use diesel::prelude::*;
+use diesel::r2d2::ConnectionManager;
 use diesel::serialize::{Output, ToSql};
 use diesel::sql_types::{Text, Varchar};
 use serde::{Deserialize, Serialize};
@@ -35,29 +36,34 @@ pub mod user;
 pub mod transaction;
 
 type Result<T> = std::result::Result<T, error::Error>;
+pub type PgPool = r2d2::Pool<ConnectionManager<PgConnection>>;
 
 /// Connect to PostgreSQL database
-pub fn get_db_connection() -> PgConnection {
+pub fn get_db_connection() -> PgPool {
 	dotenv().ok();
 	
 	let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 	
-	PgConnection::establish(&database_url).expect(&format!("error connecting to {}", database_url))
+	let manager = ConnectionManager::<PgConnection>::new(&database_url);
+	let pool = r2d2::Pool::builder().build(manager)
+		.expect("Failed to create pool.");
+	
+	pool
 }
 
 pub struct NewBankService<'a> {
-	pub db: &'a PgConnection,
-	pub user_repo: &'a user::Repo<'a>,
-	pub account_repo: &'a account::Repo<'a>,
-	pub transaction_repo: &'a transaction::Repo<'a>,
+	pub db: PgPool,
+	pub user_repo: &'a user::Repo,
+	pub account_repo: &'a account::Repo,
+	pub transaction_repo: &'a transaction::Repo,
 }
 
 pub struct BankService<'a> {
-	db: &'a PgConnection,
+	db: PgPool,
 	//todo: abstract this out into a trait
-	user_repo: &'a user::Repo<'a>,
-	account_repo: &'a account::Repo<'a>,
-	transaction_repo: &'a transaction::Repo<'a>,
+	user_repo: &'a user::Repo,
+	account_repo: &'a account::Repo,
+	transaction_repo: &'a transaction::Repo,
 }
 
 impl<'a> BankService<'a> {
@@ -70,7 +76,8 @@ impl<'a> BankService<'a> {
 		}
 	}
 	pub fn deposit(&self, account_id: &uuid::Uuid, amount: &BigDecimal) -> Result<Account> { //todo:: add result
-		self.db.transaction::<Account, error::Error, _>(|| {
+		let conn = &self.db.get()?;
+		conn.transaction::<Account, error::Error, _>(|| {
 			self.transaction_repo.create(transaction::NewTransaction {
 				from_id: None,
 				to_id: Some(account_id.clone()),
@@ -90,7 +97,8 @@ impl<'a> BankService<'a> {
 			return Err(Error::new(Kind::InadequateFunds));
 		}
 		
-		self.db.transaction::<(), error::Error, _>(|| {
+		let conn = &self.db.get()?;
+		conn.transaction::<(), error::Error, _>(|| {
 			self.transaction_repo.create(transaction::NewTransaction {
 				from_id: Some(account_id.clone()),
 				to_id: None,

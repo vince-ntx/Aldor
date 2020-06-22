@@ -2,11 +2,11 @@ use crate::repos::common::*;
 
 #[test]
 fn create_transaction() {
-	let fixture = Fixture::new();
-	let suite = Suite::setup(&fixture);
+	let mut fixture = Fixture::new();
+	let suite = Suite::setup();
 	let user = fixture.create_user();
 	
-	let checking = suite.create_account(AccountType::Checking, &user);
+	let checking = fixture.create_checking_account(&user);
 	
 	let to_id = checking.id;
 	
@@ -28,4 +28,55 @@ fn create_transaction() {
 	
 	assert_eq!(got, want);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
