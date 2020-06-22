@@ -3,7 +3,7 @@
 Build a bank to receives deposits and issue loans.    
 
 ## Features
-- open, close, and update an Account
+- open, close an Account
     - fetch accounts
 - make deposits/withdrawals
 - get a loan

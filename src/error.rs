@@ -9,13 +9,13 @@ use uuid::Error as uuidError;
 use crate::account;
 
 // an error that can occur in this crate
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Error {
 	kind: Kind,
 }
 
 impl Error {
-	pub(crate) fn new(kind: Kind) -> Error {
+	pub fn new(kind: Kind) -> Error {
 		Error { kind }
 	}
 	
@@ -25,7 +25,7 @@ impl Error {
 }
 
 /// The kind of an error that can occur.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Kind {
 	RecordAlreadyExists,
 	RecordNotFound,

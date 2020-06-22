@@ -75,6 +75,7 @@ impl<'a> BankService<'a> {
 			transaction_repo: n.transaction_repo,
 		}
 	}
+	
 	pub fn deposit(&self, account_id: &uuid::Uuid, amount: &BigDecimal) -> Result<Account> { //todo:: add result
 		let conn = &self.db.get()?;
 		conn.transaction::<Account, error::Error, _>(|| {
@@ -113,6 +114,11 @@ impl<'a> BankService<'a> {
 		
 		Ok(account)
 	}
+}
+
+pub struct Vault {
+	pub name: String,
+	pub amount: BigDecimal,
 }
 
 #[derive(Queryable, Identifiable, PartialEq, Debug)]

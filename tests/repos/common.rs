@@ -32,6 +32,10 @@ impl<'a> Fixture<'_> {
 		}
 	}
 	
+	pub fn pool(&self) -> PgPool {
+		self.pool.clone()
+	}
+	
 	pub fn conn(&self) -> PooledConnection<ConnectionManager<PgConnection>> {
 		self.pool.get().unwrap()
 	}
@@ -63,7 +67,7 @@ impl<'a> Fixture<'_> {
 		}
 	}
 	
-	pub fn create_user_and_account(&mut self) -> (User, Account) {
+	pub fn create_user_and_checking_account(&mut self) -> (User, Account) {
 		let user = self.create_user();
 		let account = self.create_checking_account(&user);
 		(user, account)
