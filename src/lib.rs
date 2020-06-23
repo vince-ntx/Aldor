@@ -24,6 +24,7 @@ use dotenv::dotenv;
 use schema::*;
 
 pub use crate::account::*;
+use crate::account_transaction::NewAccountTransaction;
 pub use crate::bank_transaction::*;
 pub use crate::error::*;
 pub use crate::schema::*;
@@ -58,7 +59,8 @@ pub struct NewBankService<'a> {
 	pub user_repo: &'a user::Repo,
 	pub vault_repo: &'a vault::Repo,
 	pub account_repo: &'a account::Repo,
-	pub transaction_repo: &'a bank_transaction::Repo,
+	pub bank_transaction_repo: &'a bank_transaction::Repo,
+	pub account_transaction_repo: &'a account_transaction::Repo,
 }
 
 pub struct BankService<'a> {
@@ -67,8 +69,8 @@ pub struct BankService<'a> {
 	user_repo: &'a user::Repo,
 	account_repo: &'a account::Repo,
 	vault_repo: &'a vault::Repo,
-	transaction_repo: &'a bank_transaction::Repo,
-	
+	bank_transaction_repo: &'a bank_transaction::Repo,
+	account_transaction_repo: &'a account_transaction::Repo,
 }
 
 impl<'a> BankService<'a> {
@@ -78,21 +80,22 @@ impl<'a> BankService<'a> {
 			user_repo: n.user_repo,
 			account_repo: n.account_repo,
 			vault_repo: n.vault_repo,
-			transaction_repo: n.transaction_repo,
+			bank_transaction_repo: n.bank_transaction_repo,
+			account_transaction_repo: n.account_transaction_repo,
 		}
 	}
 	
 	pub fn deposit(&self, account_id: &uuid::Uuid, vault_name: &str, amount: &BigDecimal) -> Result<Account> { //todo:: add result
 		let conn = &self.db.get()?;
 		conn.transaction::<Account, error::Error, _>(|| {
-			self.transaction_repo.create(bank_transaction::NewBankTransaction {
+			self.bank_transaction_repo.create(bank_transaction::NewBankTransaction {
 				account_id,
 				vault_name,
 				transaction_type: BankTransactionType::Deposit,
 				amount,
 			})?;
 			
-			let account = self.account_repo.transact(BankTransactionType::Deposit, account_id, amount)?;
+			let account = self.account_repo.increment(account_id, amount)?;
 			self.vault_repo.transact(BankTransactionType::Deposit, vault_name, amount)?;
 			
 			Ok(account)
@@ -107,20 +110,36 @@ impl<'a> BankService<'a> {
 		
 		let conn = &self.db.get()?;
 		conn.transaction::<(), error::Error, _>(|| {
-			self.transaction_repo.create(bank_transaction::NewBankTransaction {
+			self.bank_transaction_repo.create(bank_transaction::NewBankTransaction {
 				account_id,
 				vault_name,
 				transaction_type: BankTransactionType::Withdraw,
 				amount,
 			})?;
 			
-			account = self.account_repo.transact(BankTransactionType::Withdraw, account_id, amount)?;
+			account = self.account_repo.decrement(account_id, amount)?;
 			self.vault_repo.transact(BankTransactionType::Withdraw, vault_name, amount)?;
 			
 			Ok(())
 		});
 		
 		Ok(account)
+	}
+	
+	pub fn send_funds(&self, sender_id: &uuid::Uuid, receiver_id: &uuid::Uuid, amount: &BigDecimal) -> Result<AccountTransaction> {
+		let conn = &self.db.get()?;
+		conn.transaction::<AccountTransaction, error::Error, _>(|| {
+			let transaction = self.account_transaction_repo.transfer(NewAccountTransaction {
+				sender_id,
+				receiver_id,
+				amount,
+			})?;
+			
+			self.account_repo.increment(receiver_id, amount)?;
+			self.account_repo.decrement(sender_id, amount)?;
+			
+			Ok(transaction)
+		})
 	}
 }
 

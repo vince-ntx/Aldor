@@ -31,7 +31,8 @@ impl<'a> Suite<'a> {
 			user_repo: &self.repo_suite.user_repo,
 			account_repo: &self.repo_suite.account_repo,
 			vault_repo: &self.repo_suite.vault_repo,
-			transaction_repo: &self.repo_suite.bank_transaction_repo,
+			bank_transaction_repo: &self.repo_suite.bank_transaction_repo,
+			account_transaction_repo: &self.repo_suite.account_transaction_repo,
 		})
 	}
 }
@@ -63,7 +64,7 @@ fn withdraw() {
 	let account = f.account_factory.checking_account(user.id);
 	
 	let deposit_amount = BigDecimal::from(500);
-	s.repo_suite.account_repo.transact(BankTransactionType::Deposit, &account.id, &deposit_amount);
+	s.repo_suite.account_repo.increment(&account.id, &deposit_amount);
 	s.repo_suite.vault_repo.transact(BankTransactionType::Deposit, &s.vault.name, &deposit_amount);
 	
 	let withdraw_amount = BigDecimal::from(300);
@@ -77,7 +78,7 @@ fn withdraw() {
 
 #[test]
 fn withdraw_invalid_funds_err() {
-	let mut fixture = Fixture::new();
+	let fixture = Fixture::new();
 	let s = Suite::setup(&fixture);
 	let bob = fixture.user_factory.bob();
 	let bob_account = fixture.account_factory.checking_account(bob.id);
@@ -88,3 +89,81 @@ fn withdraw_invalid_funds_err() {
 	
 	assert_eq!(got_err, Error::new(Kind::InadequateFunds))
 }
+
+#[test]
+fn send_funds() {
+	let f = Fixture::new();
+	let s = Suite::setup(&f);
+	
+	let bob = f.user_factory.bob();
+	let bob_account = f.account_factory.checking_account(bob.id);
+	let sender_id = &bob_account.id;
+	
+	
+	let lucy = f.user_factory.lucy();
+	let lucy_account = f.account_factory.checking_account(lucy.id);
+	let receiver_id = &lucy_account.id;
+	
+	let bob_initial_amount = BigDecimal::from(500);
+	s.repo_suite.account_repo.increment(sender_id, &bob_initial_amount);
+	
+	let transfer_amount = BigDecimal::from(250);
+	let transaction = s.bank_service().send_funds(sender_id, receiver_id, &transfer_amount).unwrap();
+	
+	let bob_account = s.repo_suite.account_repo.find_account(sender_id).unwrap();
+	assert_eq!(bob_account.amount, &bob_initial_amount - &transfer_amount);
+	
+	let lucy_account = s.repo_suite.account_repo.find_account(receiver_id).unwrap();
+	assert_eq!(lucy_account.amount, transfer_amount);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

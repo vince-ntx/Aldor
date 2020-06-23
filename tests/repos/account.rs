@@ -44,13 +44,13 @@ fn account_deposit_and_withdrawal() {
 	
 	// deposit
 	let deposit_amount = BigDecimal::from(500);
-	let got = suite.account_repo.transact(BankTransactionType::Deposit, &checking.id, &deposit_amount).unwrap();
+	let got = suite.account_repo.increment(&checking.id, &deposit_amount).unwrap();
 	
 	let want_amount = (checking.amount) + BigDecimal::from(deposit_amount);
 	assert_eq!(got.amount, want_amount, "account's amount should be equal to the deposit");
 	
 	let withdraw_amount = BigDecimal::from(250);
-	let got = suite.account_repo.transact(BankTransactionType::Withdraw, &checking.id, &withdraw_amount).unwrap();
+	let got = suite.account_repo.increment(&checking.id, &withdraw_amount).unwrap();
 	
 	let want_amount = (&want_amount) - withdraw_amount;
 	assert_eq!(got.amount, want_amount, "account's amount should be equal to (deposit - withdrawal)");

@@ -58,18 +58,20 @@ impl Repo {
 			.map_err(Into::into)
 	}
 	
-	pub fn transact(&self, k: BankTransactionType, account_id: &uuid::Uuid, value: &BigDecimal) ->
-	Result<Account> {
+	pub fn increment(&self, account_id: &uuid::Uuid, amount: &BigDecimal) -> Result<Account> {
+		self.transact(account_id, amount)
+	}
+	
+	pub fn decrement(&self, account_id: &uuid::Uuid, amount: &BigDecimal) -> Result<Account> {
+		let neg = amount.neg();
+		self.transact(account_id, &neg)
+	}
+	
+	fn transact(&self, account_id: &uuid::Uuid, amount: &BigDecimal) -> Result<Account> {
 		let conn = &self.db.get()?;
-		let neg_value = value.neg();
-		let v = match k {
-			BankTransactionType::Deposit => value,
-			BankTransactionType::Withdraw => &neg_value,
-		};
-		
 		diesel::update(accounts::table)
 			.filter(accounts::id.eq(account_id))
-			.set(accounts::amount.eq(accounts::amount + v))
+			.set(accounts::amount.eq(accounts::amount + amount))
 			.get_result(conn)
 			.map_err(Into::into)
 	}
