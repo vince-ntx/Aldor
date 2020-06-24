@@ -115,6 +115,11 @@ fn send_funds() {
 	
 	let lucy_account = s.repo_suite.account_repo.find_account(receiver_id).unwrap();
 	assert_eq!(lucy_account.amount, transfer_amount);
+	
+	/* expect error on overdrawn account */
+	let transfer_amount = BigDecimal::from(1_000);
+	let err = s.bank_service().send_funds(sender_id, receiver_id, &transfer_amount).unwrap_err();
+	assert_eq!(err, Error::new(Kind::InadequateFunds))
 }
 
 

@@ -4,6 +4,6 @@ CREATE TABLE accounts
     user_id      uuid REFERENCES users (id)   NOT NULL,
     account_type varchar                      NOT NULL,
     amount       NUMERIC(12, 4) DEFAULT 0     NOT NULL,
-    created_at   timestamp      DEFAULT NOW() NOT NULL,
+    created_at   timestamptz    DEFAULT NOW() NOT NULL,
     is_open      boolean        DEFAULT true  NOT NULL
 )

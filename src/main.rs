@@ -15,7 +15,6 @@ async fn main() {
 	env::set_var("RUST_LOG", "debug");
 	pretty_env_logger::init();
 	
-	
 	// let results = users.limit(5).load::<User>(&conn)
 	// 	.expect("error loading users");
 	

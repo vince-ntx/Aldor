@@ -16,7 +16,7 @@ fn create_account_transaction() {
 	
 	let amount = BigDecimal::from(100);
 	
-	let got = suite.account_transaction_repo.transfer(NewAccountTransaction {
+	let got = suite.account_transaction_repo.create(NewAccountTransaction {
 		sender_id: &sender_account.id,
 		receiver_id: &receiver_account.id,
 		amount: &amount,

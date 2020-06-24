@@ -4,7 +4,7 @@ table! {
         sender_id -> Uuid,
         receiver_id -> Uuid,
         amount -> Numeric,
-        created_at -> Timestamp,
+        created_at -> Timestamptz,
     }
 }
 
@@ -14,7 +14,7 @@ table! {
         user_id -> Uuid,
         account_type -> Varchar,
         amount -> Numeric,
-        created_at -> Timestamp,
+        created_at -> Timestamptz,
         is_open -> Bool,
     }
 }
@@ -26,7 +26,7 @@ table! {
         vault_name -> Varchar,
         transaction_type -> Varchar,
         amount -> Numeric,
-        created_at -> Timestamp,
+        created_at -> Timestamptz,
     }
 }
 

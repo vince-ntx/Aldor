@@ -5,7 +5,7 @@ CREATE TABLE bank_transactions
     vault_name       varchar REFERENCES vaults (name) NOT NULL,
     transaction_type varchar                          NOT NULL,
     amount           NUMERIC(12, 4) DEFAULT 0         NOT NULL,
-    created_at       timestamp      DEFAULT NOW()     NOT NULL
+    created_at       timestamptz    DEFAULT NOW()     NOT NULL
 );
 
 CREATE TABLE account_transactions
@@ -14,5 +14,5 @@ CREATE TABLE account_transactions
     sender_id   uuid REFERENCES accounts (id) NOT NULL,
     receiver_id uuid REFERENCES accounts (id) NOT NULL,
     amount      NUMERIC(12, 4) DEFAULT 0      NOT NULL,
-    created_at  timestamp      DEFAULT NOW()  NOT NULL
+    created_at  timestamptz    DEFAULT NOW()  NOT NULL
 );

@@ -20,7 +20,7 @@ impl Repo {
 		Repo { db }
 	}
 	
-	pub fn transfer(&self, new_transaction: NewAccountTransaction) -> Result<AccountTransaction> {
+	pub fn create(&self, new_transaction: NewAccountTransaction) -> Result<AccountTransaction> {
 		let conn = &self.db.get()?;
 		diesel::insert_into(account_transactions::table)
 			.values(&new_transaction)

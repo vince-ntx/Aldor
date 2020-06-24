@@ -10,6 +10,7 @@ use std::str::FromStr;
 use std::time::SystemTime;
 
 use bigdecimal::BigDecimal;
+use chrono::{Date, Datelike, DateTime, Duration, TimeZone, Utc};
 use diesel::{deserialize::*, deserialize, Queryable, QueryableByName, r2d2, serialize};
 pub use diesel::pg::Pg;
 use diesel::prelude::*;
@@ -103,7 +104,7 @@ impl<'a> BankService<'a> {
 	}
 	
 	pub fn withdraw(&self, account_id: &uuid::Uuid, vault_name: &str, amount: &BigDecimal) -> Result<Account> {
-		let mut account = self.account_repo.find_account(account_id).expect("get account");
+		let mut account = self.account_repo.find_account(account_id)?;
 		if account.amount.lt(amount) {
 			return Err(Error::new(Kind::InadequateFunds));
 		}
@@ -127,9 +128,14 @@ impl<'a> BankService<'a> {
 	}
 	
 	pub fn send_funds(&self, sender_id: &uuid::Uuid, receiver_id: &uuid::Uuid, amount: &BigDecimal) -> Result<AccountTransaction> {
+		let mut sender_account = self.account_repo.find_account(sender_id)?;
+		if sender_account.amount.lt(amount) {
+			return Err(Error::new(Kind::InadequateFunds));
+		}
+		
 		let conn = &self.db.get()?;
 		conn.transaction::<AccountTransaction, error::Error, _>(|| {
-			let transaction = self.account_transaction_repo.transfer(NewAccountTransaction {
+			let transaction = self.account_transaction_repo.create(NewAccountTransaction {
 				sender_id,
 				receiver_id,
 				amount,
@@ -170,7 +176,7 @@ pub struct Account {
 	pub user_id: uuid::Uuid,
 	pub account_type: AccountType,
 	pub amount: BigDecimal,
-	pub created_at: SystemTime,
+	pub created_at: chrono::DateTime<chrono::Utc>,
 	pub is_open: bool,
 }
 
@@ -215,7 +221,7 @@ pub struct BankTransaction {
 	pub vault_name: String,
 	pub transaction_type: BankTransactionType,
 	pub amount: BigDecimal,
-	pub created_at: SystemTime,
+	pub created_at: chrono::DateTime<Utc>,
 }
 
 #[derive(Debug, AsExpression, FromSqlRow, PartialEq)]
@@ -258,5 +264,75 @@ pub struct AccountTransaction {
 	pub sender_id: uuid::Uuid,
 	pub receiver_id: uuid::Uuid,
 	pub amount: BigDecimal,
-	pub created_at: SystemTime,
+	pub created_at: chrono::DateTime<chrono::Utc>,
 }
+
+#[derive(Debug)]
+pub struct Loan {
+	pub principal: BigDecimal,
+	pub interest_rate: u16,
+	pub issue_date: chrono::Date<chrono::Utc>,
+	pub maturity_date: chrono::Date<chrono::Utc>,
+	pub payment_frequency: u8,
+	pub compound_frequency: u8,
+}
+
+pub struct NewLoan {
+	pub principal: BigDecimal,
+	pub interest_rate: u16,
+	pub issue_date: chrono::Date<chrono::Utc>,
+	pub term_months: u16,
+	pub payment_frequency: u8,
+	pub compound_frequency: u8,
+	// pub user_id:
+	// accrued_interest_total:
+	// amount_paid on principal
+	// amount_paid on interest
+}
+
+impl Loan {
+	pub fn new(new_loan: NewLoan) -> Self {
+		Loan {
+			principal: new_loan.principal,
+			interest_rate: new_loan.interest_rate,
+			issue_date: new_loan.issue_date,
+			maturity_date: Loan::maturity_date(new_loan.issue_date, new_loan.term_months),
+			payment_frequency: new_loan.payment_frequency,
+			compound_frequency: new_loan.compound_frequency,
+		}
+	}
+	
+	fn maturity_date(issue_date: Date<Utc>, num_months: u16) -> Date<Utc> {
+		let mut add_years: u32 = (num_months / 12) as u32;
+		let mut add_months: u32 = (num_months % 12) as u32;
+		
+		let maturity_month: u32;
+		
+		let total_months = issue_date.month().add(add_months as u32);
+		if total_months > 12 {
+			maturity_month = (total_months / 12);
+			add_years += 1;
+		} else {
+			maturity_month = total_months;
+		}
+		
+		let maturity_year: i32 = issue_date.year() + add_years as i32;
+		
+		Utc.ymd(maturity_year, maturity_month, issue_date.day())
+	}
+}
+
+
+#[test]
+fn loan() {
+	let l = Loan::new(NewLoan {
+		principal: BigDecimal::from(0),
+		interest_rate: 0,
+		issue_date: Utc::now().date(),
+		term_months: 6,
+		payment_frequency: 0,
+		compound_frequency: 0,
+	});
+	println!("{:#?}", l);
+}
+
