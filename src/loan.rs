@@ -42,11 +42,20 @@ impl Repo {
 			.get_result(conn)
 			.map_err(Into::into)
 	}
+	
+	pub fn find_by_id(&self, id: &uuid::Uuid) -> Result<Loan> {
+		let conn = &self.db.get()?;
+		loans::table
+			.find(id)
+			.select(loans::all_columns)
+			.first(conn)
+			.map_err(Into::into)
+	}
 }
 
 #[derive(Insertable)]
 #[table_name = "loan_payments"]
-pub struct NewLoanPayment {
+pub struct NewPayment {
 	pub loan_id: uuid::Uuid,
 	pub principal_due: BigDecimal,
 	pub interest_due: BigDecimal,
@@ -62,12 +71,22 @@ impl PaymentRepo {
 		PaymentRepo { db }
 	}
 	
-	pub fn create(&self, new_loan_payment: NewLoanPayment) -> Result<LoanPayment> {
+	pub fn create(&self, new_payment: NewPayment) -> Result<LoanPayment> {
 		let conn = &self.db.get()?;
 		
 		diesel::insert_into(loan_payments::table)
-			.values(&new_loan_payment)
+			.values(&new_payment)
 			.get_result(conn)
+			.map_err(Into::into)
+	}
+	
+	pub fn find_by_id(&self, id: &uuid::Uuid) -> Result<LoanPayment> {
+		let conn = &self.db.get()?;
+		
+		loan_payments::table
+			.find(id)
+			.select(loan_payments::all_columns)
+			.first(conn)
 			.map_err(Into::into)
 	}
 }

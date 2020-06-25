@@ -4,6 +4,7 @@ use bigdecimal::BigDecimal;
 use diesel::prelude::*;
 
 use crate::{BankTransactionType, PgPool, Result, Vault};
+use crate::BankTransactionType::PrincipalRepayment;
 use crate::schema::vaults;
 
 #[derive(Insertable)]
@@ -30,17 +31,18 @@ impl Repo {
 			.map_err(Into::into)
 	}
 	
-	pub fn transact(&self, k: BankTransactionType, vault_name: &str, value: &BigDecimal) -> Result<Vault> {
+	pub fn transact(&self, transaction_type: BankTransactionType, vault_name: &str, value: &BigDecimal) -> Result<Vault> {
+		use BankTransactionType::*;
 		let conn = &self.db.get()?;
 		let neg_value = value.neg();
-		let v = match k {
-			BankTransactionType::Deposit => value,
-			BankTransactionType::Withdraw => &neg_value,
+		let change = match transaction_type {
+			Deposit | LoanPrincipal => value,
+			Withdraw | PrincipalRepayment | InterestRepayment => &neg_value,
 		};
 		
 		diesel::update(vaults::table)
 			.filter(vaults::name.eq(vault_name))
-			.set(vaults::amount.eq(vaults::amount + v))
+			.set(vaults::amount.eq(vaults::amount + change))
 			.get_result(conn)
 			.map_err(Into::into)
 	}

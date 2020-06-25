@@ -49,7 +49,7 @@ impl Repo {
 			.map_err(Into::into)
 	}
 	
-	pub fn find_account(&self, account_id: &uuid::Uuid) -> Result<Account> {
+	pub fn find_by_id(&self, account_id: &uuid::Uuid) -> Result<Account> {
 		let conn = &self.db.get()?;
 		accounts::table
 			.filter(accounts::id.eq(account_id))

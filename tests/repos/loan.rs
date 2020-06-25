@@ -1,4 +1,4 @@
-use bank_api::loan::{NewLoan, NewLoanPayment};
+use bank_api::loan::{NewLoan, NewPayment};
 
 use crate::common::*;
 
@@ -19,7 +19,7 @@ fn create_loan() {
 	}).unwrap();
 	
 	// create loan payment
-	let loan_payment = suite.loan_payment_repo.create(NewLoanPayment {
+	let loan_payment = suite.loan_payment_repo.create(NewPayment {
 		loan_id: loan.id,
 		principal_due: Default::default(),
 		interest_due: Default::default(),

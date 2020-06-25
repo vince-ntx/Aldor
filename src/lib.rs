@@ -18,6 +18,9 @@ use diesel::r2d2::ConnectionManager;
 use diesel::serialize::{Output, ToSql};
 use diesel::sql_types::{Text, Varchar};
 use serde::{Deserialize, Serialize};
+use strum;
+use strum::*;
+use strum_macros::{Display, EnumString};
 use uuid;
 use uuid::Uuid;
 
@@ -28,7 +31,7 @@ pub use crate::account::*;
 use crate::account_transaction::NewAccountTransaction;
 pub use crate::bank_transaction::*;
 pub use crate::error::*;
-use crate::loan::{NewLoan, NewLoanPayment};
+use crate::loan::{NewLoan, NewPayment};
 pub use crate::schema::*;
 pub use crate::user::*;
 
@@ -112,7 +115,7 @@ impl<'a> BankService<'a> {
 	}
 	
 	pub fn withdraw(&self, account_id: &uuid::Uuid, vault_name: &str, amount: &BigDecimal) -> Result<Account> {
-		let mut account = self.account_repo.find_account(account_id)?;
+		let mut account = self.account_repo.find_by_id(account_id)?;
 		if account.amount.lt(amount) {
 			return Err(Error::new(Kind::InadequateFunds));
 		}
@@ -136,7 +139,7 @@ impl<'a> BankService<'a> {
 	}
 	
 	pub fn send_funds(&self, sender_id: &uuid::Uuid, receiver_id: &uuid::Uuid, amount: &BigDecimal) -> Result<AccountTransaction> {
-		let mut sender_account = self.account_repo.find_account(sender_id)?;
+		let mut sender_account = self.account_repo.find_by_id(sender_id)?;
 		if sender_account.amount.lt(amount) {
 			return Err(Error::new(Kind::InadequateFunds));
 		}
@@ -165,6 +168,7 @@ impl<'a> BankService<'a> {
 	- due_date: 1 month + issue_date
 	 */
 	pub fn approve_loan(&self, new_loan: loan::NewLoan) -> Result<Loan> {
+		//todo: create transaction
 		let loan = self.loan_repo.create(new_loan)?;
 		let principal = &loan.principal;
 		
@@ -173,15 +177,41 @@ impl<'a> BankService<'a> {
 		
 		let next_loan_payment = self.loan_payments_repo.create(
 			{
-				NewLoanPayment {
+				NewPayment {
 					loan_id: loan.id,
 					principal_due,
 					interest_due,
 					due_date: Loan::increment_date(&loan.issue_date, 1),
 				}
 			});
+		
+		// send funds from vault
+		
+		
 		Ok(loan)
 	}
+	
+	/*
+	start db transaction
+	create transaction
+	subtract from account
+	add to bank
+	 */
+	// pub fn pay_loan_payment_due(&self, loan_payment_id: &uuid::Uuid, account_id: &uuid::Uuid) -> Result<LoanPayment> {
+	// 	let loan_payment = self.loan_payments_repo.find_by_id(loan_payment_id)?;
+	// 	let loan = self.loan_repo.find_by_id(&loan_payment.loan_id)?;
+	// 	let account = self.account_repo.find_by_id(account_id)?;
+	//
+	// 	let conn = &self.db.get()?;
+	// 	conn.transaction::<LoanPayment, error::Error, _>(|| {
+	// 		self.bank_transaction_repo.create(NewBankTransaction {
+	// 			account_id,
+	// 			vault_name: "",
+	// 			transaction_type: BankTransactionType::Deposit,
+	// 			amount: &Default::default(),
+	// 		})
+	// 	}
+	// }
 }
 
 #[derive(Queryable, PartialEq, Debug)]
@@ -259,37 +289,29 @@ pub struct BankTransaction {
 	pub created_at: chrono::DateTime<Utc>,
 }
 
-#[derive(Debug, AsExpression, FromSqlRow, PartialEq)]
+#[derive(Debug, AsExpression, FromSqlRow, Eq, PartialEq, EnumString, Display)]
 #[sql_type = "Varchar"]
+#[strum(serialize_all = "snake_case")]
 pub enum BankTransactionType {
 	Deposit,
 	Withdraw,
-}
-
-impl BankTransactionType {
-	pub fn as_str(&self) -> &str {
-		match self {
-			BankTransactionType::Deposit => "deposit",
-			BankTransactionType::Withdraw => "withdraw",
-		}
-	}
+	LoanPrincipal,
+	PrincipalRepayment,
+	InterestRepayment,
 }
 
 impl ToSql<Varchar, Pg> for BankTransactionType {
 	fn to_sql<W: std::io::Write>(&self, out: &mut Output<W, Pg>) -> serialize::Result {
-		ToSql::<Varchar, Pg>::to_sql(self.as_str(), out)
+		ToSql::<Varchar, Pg>::to_sql(&self.to_string(), out)
 	}
 }
 
 impl FromSql<Varchar, Pg> for BankTransactionType {
 	fn from_sql(bytes: Option<&[u8]>) -> deserialize::Result<Self> {
 		let o = bytes.ok_or_else(|| "error deserializing from varchar")?;
-		let x = std::str::from_utf8(o)?;
-		match x {
-			"deposit" => Ok(BankTransactionType::Deposit),
-			"withdraw" => Ok(BankTransactionType::Withdraw),
-			_ => Err("invalid transaction key".into())
-		}
+		let s = std::str::from_utf8(o)?;
+		
+		Ok(BankTransactionType::from_str(s).unwrap())
 	}
 }
 

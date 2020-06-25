@@ -112,10 +112,10 @@ fn send_funds() {
 	let transfer_amount = BigDecimal::from(250);
 	let transaction = s.bank_service().send_funds(sender_id, receiver_id, &transfer_amount).unwrap();
 	
-	let bob_account = s.repo_suite.account_repo.find_account(sender_id).unwrap();
+	let bob_account = s.repo_suite.account_repo.find_by_id(sender_id).unwrap();
 	assert_eq!(bob_account.amount, &bob_initial_amount - &transfer_amount);
 	
-	let lucy_account = s.repo_suite.account_repo.find_account(receiver_id).unwrap();
+	let lucy_account = s.repo_suite.account_repo.find_by_id(receiver_id).unwrap();
 	assert_eq!(lucy_account.amount, transfer_amount);
 	
 	/* expect error on overdrawn account */
