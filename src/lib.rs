@@ -5,12 +5,12 @@ extern crate diesel;
 use std::borrow::Borrow;
 use std::env;
 use std::io::Write;
-use std::ops::{Add, Neg};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::str::FromStr;
 use std::time::SystemTime;
 
 use bigdecimal::BigDecimal;
-use chrono::{Date, Datelike, DateTime, Duration, TimeZone, Utc};
+use chrono::{Datelike, DateTime, Duration, NaiveDate, TimeZone, Utc};
 use diesel::{deserialize::*, deserialize, Queryable, QueryableByName, r2d2, serialize};
 pub use diesel::pg::Pg;
 use diesel::prelude::*;
@@ -28,6 +28,7 @@ pub use crate::account::*;
 use crate::account_transaction::NewAccountTransaction;
 pub use crate::bank_transaction::*;
 pub use crate::error::*;
+use crate::loan::{NewLoan, NewLoanPayment};
 pub use crate::schema::*;
 pub use crate::user::*;
 
@@ -38,6 +39,7 @@ pub mod user;
 pub mod bank_transaction;
 pub mod account_transaction;
 pub mod vault;
+pub mod loan;
 
 type Result<T> = std::result::Result<T, error::Error>;
 pub type PgPool = r2d2::Pool<ConnectionManager<PgConnection>>;
@@ -62,6 +64,8 @@ pub struct NewBankService<'a> {
 	pub account_repo: &'a account::Repo,
 	pub bank_transaction_repo: &'a bank_transaction::Repo,
 	pub account_transaction_repo: &'a account_transaction::Repo,
+	pub loan_repo: &'a loan::Repo,
+	pub loan_payment_repo: &'a loan::PaymentRepo,
 }
 
 pub struct BankService<'a> {
@@ -72,6 +76,8 @@ pub struct BankService<'a> {
 	vault_repo: &'a vault::Repo,
 	bank_transaction_repo: &'a bank_transaction::Repo,
 	account_transaction_repo: &'a account_transaction::Repo,
+	loan_repo: &'a loan::Repo,
+	loan_payments_repo: &'a loan::PaymentRepo,
 }
 
 impl<'a> BankService<'a> {
@@ -83,6 +89,8 @@ impl<'a> BankService<'a> {
 			vault_repo: n.vault_repo,
 			bank_transaction_repo: n.bank_transaction_repo,
 			account_transaction_repo: n.account_transaction_repo,
+			loan_repo: n.loan_repo,
+			loan_payments_repo: n.loan_payment_repo,
 		}
 	}
 	
@@ -146,6 +154,33 @@ impl<'a> BankService<'a> {
 			
 			Ok(transaction)
 		})
+	}
+	
+	
+	// create loan
+	// create next payment due
+	/*
+	- principal_due: remaining principle / remaining months
+	- interest_due: (remaining principle * intrest rate) / payment_frequency
+	- due_date: 1 month + issue_date
+	 */
+	pub fn approve_loan(&self, new_loan: loan::NewLoan) -> Result<Loan> {
+		let loan = self.loan_repo.create(new_loan)?;
+		let principal = &loan.principal;
+		
+		let principal_due = principal.div(BigDecimal::from(loan.months_til_maturity()));
+		let interest_due = principal.mul(loan.interest_rate()) / loan.payment_frequency;
+		
+		let next_loan_payment = self.loan_payments_repo.create(
+			{
+				NewLoanPayment {
+					loan_id: loan.id,
+					principal_due,
+					interest_due,
+					due_date: Loan::increment_date(&loan.issue_date, 1),
+				}
+			});
+		Ok(loan)
 	}
 }
 
@@ -267,42 +302,36 @@ pub struct AccountTransaction {
 	pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug)]
+pub type Date = chrono::NaiveDate;
+
+#[derive(Queryable, Identifiable, Debug)]
 pub struct Loan {
+	pub id: uuid::Uuid,
+	pub user_id: uuid::Uuid,
 	pub principal: BigDecimal,
-	pub interest_rate: u16,
-	pub issue_date: chrono::Date<chrono::Utc>,
-	pub maturity_date: chrono::Date<chrono::Utc>,
-	pub payment_frequency: u8,
-	pub compound_frequency: u8,
+	pub interest_rate: i16,
+	pub issue_date: Date,
+	pub maturity_date: Date,
+	pub payment_frequency: i16,
+	pub compound_frequency: i16,
+	pub accrued_interest: BigDecimal,
+	pub active: bool,
 }
 
-pub struct NewLoan {
-	pub principal: BigDecimal,
-	pub interest_rate: u16,
-	pub issue_date: chrono::Date<chrono::Utc>,
-	pub term_months: u16,
-	pub payment_frequency: u8,
-	pub compound_frequency: u8,
-	// pub user_id:
-	// accrued_interest_total:
-	// amount_paid on principal
-	// amount_paid on interest
+
+#[derive(Queryable, Identifiable, Debug)]
+pub struct LoanPayment {
+	pub id: uuid::Uuid,
+	pub loan_id: uuid::Uuid,
+	pub principal_due: BigDecimal,
+	pub interest_due: BigDecimal,
+	pub due_date: Date,
+	pub is_paid: bool,
 }
+
 
 impl Loan {
-	pub fn new(new_loan: NewLoan) -> Self {
-		Loan {
-			principal: new_loan.principal,
-			interest_rate: new_loan.interest_rate,
-			issue_date: new_loan.issue_date,
-			maturity_date: Loan::maturity_date(new_loan.issue_date, new_loan.term_months),
-			payment_frequency: new_loan.payment_frequency,
-			compound_frequency: new_loan.compound_frequency,
-		}
-	}
-	
-	fn maturity_date(issue_date: Date<Utc>, num_months: u16) -> Date<Utc> {
+	pub fn increment_date(issue_date: &Date, num_months: u16) -> Date {
 		let mut add_years: u32 = (num_months / 12) as u32;
 		let mut add_months: u32 = (num_months % 12) as u32;
 		
@@ -318,21 +347,18 @@ impl Loan {
 		
 		let maturity_year: i32 = issue_date.year() + add_years as i32;
 		
-		Utc.ymd(maturity_year, maturity_month, issue_date.day())
+		chrono::NaiveDate::from_ymd(maturity_year, maturity_month, issue_date.day())
 	}
-}
-
-
-#[test]
-fn loan() {
-	let l = Loan::new(NewLoan {
-		principal: BigDecimal::from(0),
-		interest_rate: 0,
-		issue_date: Utc::now().date(),
-		term_months: 6,
-		payment_frequency: 0,
-		compound_frequency: 0,
-	});
-	println!("{:#?}", l);
+	
+	// Converts interest rate (in basis points) to BigDecimal
+	pub fn interest_rate(&self) -> BigDecimal {
+		BigDecimal::from(self.interest_rate) / 10000
+	}
+	
+	fn months_til_maturity(&self) -> u16 {
+		let years = self.maturity_date.year() - self.issue_date.year();
+		let months = (self.maturity_date.month() - self.issue_date.month()) + (years * 12) as u32;
+		months as u16
+	}
 }
 

@@ -63,6 +63,8 @@ impl Fixture {
 			"bank_transactions",
 			"accounts",
 			"vaults",
+			"loan_payments",
+			"loans",
 			"users",
 		];
 		println!("\n--- clean up ---");
@@ -81,6 +83,8 @@ pub struct Suite {
 	pub vault_repo: vault::Repo,
 	pub bank_transaction_repo: bank_transaction::Repo,
 	pub account_transaction_repo: account_transaction::Repo,
+	pub loan_repo: loan::Repo,
+	pub loan_payment_repo: loan::PaymentRepo,
 }
 
 impl Suite {
@@ -94,6 +98,8 @@ impl Suite {
 			vault_repo: vault::Repo::new(fixture.pool.clone()),
 			bank_transaction_repo: bank_transaction::Repo::new(fixture.pool.clone()),
 			account_transaction_repo: account_transaction::Repo::new(fixture.pool.clone()),
+			loan_repo: loan::Repo::new(fixture.pool.clone()),
+			loan_payment_repo: loan::PaymentRepo::new(fixture.pool.clone()),
 		};
 		
 		suite
@@ -108,16 +114,6 @@ fn test_suite_setup() {
 pub struct UserFactory {
 	pool: PgPool
 }
-
-#[test]
-fn t() {
-	let f = Fixture::new();
-	let bob = f.user_factory.bob();
-	
-	
-	println!("{:?}", bob);
-}
-
 
 impl<'a> UserFactory {
 	fn new(pool: PgPool) -> Self {

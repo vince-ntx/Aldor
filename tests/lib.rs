@@ -5,6 +5,7 @@ mod repos {
 	mod account;
 	mod bank_transaction;
 	mod account_transaction;
+	mod loan;
 }
 
 mod bank;

@@ -31,6 +31,32 @@ table! {
 }
 
 table! {
+    loan_payments (id) {
+        id -> Uuid,
+        loan_id -> Uuid,
+        principal_due -> Numeric,
+        interest_due -> Numeric,
+        due_date -> Date,
+        is_paid -> Bool,
+    }
+}
+
+table! {
+    loans (id) {
+        id -> Uuid,
+        user_id -> Uuid,
+        principal -> Numeric,
+        interest_rate -> Int2,
+        issue_date -> Date,
+        maturity_date -> Date,
+        payment_frequency -> Int2,
+        compound_frequency -> Int2,
+        accrued_interest -> Numeric,
+        active -> Bool,
+    }
+}
+
+table! {
     users (id) {
         id -> Uuid,
         email -> Varchar,
@@ -50,11 +76,15 @@ table! {
 joinable!(accounts -> users (user_id));
 joinable!(bank_transactions -> accounts (account_id));
 joinable!(bank_transactions -> vaults (vault_name));
+joinable!(loan_payments -> loans (loan_id));
+joinable!(loans -> users (user_id));
 
 allow_tables_to_appear_in_same_query!(
     account_transactions,
     accounts,
     bank_transactions,
+    loan_payments,
+    loans,
     users,
     vaults,
 );

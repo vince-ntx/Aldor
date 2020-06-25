@@ -33,6 +33,8 @@ impl<'a> Suite<'a> {
 			vault_repo: &self.repo_suite.vault_repo,
 			bank_transaction_repo: &self.repo_suite.bank_transaction_repo,
 			account_transaction_repo: &self.repo_suite.account_transaction_repo,
+			loan_repo: &self.repo_suite.loan_repo,
+			loan_payment_repo: &self.repo_suite.loan_payment_repo,
 		})
 	}
 }
@@ -120,6 +122,25 @@ fn send_funds() {
 	let transfer_amount = BigDecimal::from(1_000);
 	let err = s.bank_service().send_funds(sender_id, receiver_id, &transfer_amount).unwrap_err();
 	assert_eq!(err, Error::new(Kind::InadequateFunds))
+}
+
+#[test]
+fn approve_loan() {
+	let f = Fixture::new();
+	let s = Suite::setup(&f);
+	
+	let bob = f.user_factory.bob();
+	let issue_date = Date::from_ymd(2020, 1, 1);
+	
+	s.bank_service().approve_loan(loan::NewLoan {
+		user_id: bob.id,
+		principal: BigDecimal::from(1000),
+		interest_rate: 200,
+		issue_date,
+		maturity_date: Loan::increment_date(&issue_date, 12),
+		payment_frequency: 1,
+		compound_frequency: 1,
+	});
 }
 
 

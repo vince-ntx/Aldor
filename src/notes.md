@@ -30,6 +30,11 @@ x earn a profit for the bank
 - Compound Frequency
     
 Calculator: https://www.mybct.com/calculator/complex-loan
+### Loan Proccess
+- loan granted by bank to a user
+- configure payment due  
+- allow user to pay for the current month
+- allow user to pay early
     
 
 ### Earnings for bank and customer
