@@ -31,18 +31,20 @@ impl Repo {
 			.map_err(Into::into)
 	}
 	
-	pub fn transact(&self, transaction_type: BankTransactionType, vault_name: &str, value: &BigDecimal) -> Result<Vault> {
-		use BankTransactionType::*;
+	pub fn increment(&self, vault_name: &str, amount: &BigDecimal) -> Result<Vault> {
+		self.transact(vault_name, amount)
+	}
+	
+	pub fn decrement(&self, vault_name: &str, amount: &BigDecimal) -> Result<Vault> {
+		let neg = amount.neg();
+		self.transact(vault_name, &neg)
+	}
+	
+	fn transact(&self, vault_name: &str, amount: &BigDecimal) -> Result<Vault> {
 		let conn = &self.db.get()?;
-		let neg_value = value.neg();
-		let change = match transaction_type {
-			Deposit | LoanPrincipal => value,
-			Withdraw | PrincipalRepayment | InterestRepayment => &neg_value,
-		};
-		
 		diesel::update(vaults::table)
 			.filter(vaults::name.eq(vault_name))
-			.set(vaults::amount.eq(vaults::amount + change))
+			.set(vaults::amount.eq(vaults::amount + amount))
 			.get_result(conn)
 			.map_err(Into::into)
 	}

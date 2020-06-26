@@ -37,7 +37,8 @@ table! {
         principal_due -> Numeric,
         interest_due -> Numeric,
         due_date -> Date,
-        is_paid -> Bool,
+        principle_transaction_id -> Nullable<Uuid>,
+        interest_transaction_id -> Nullable<Uuid>,
     }
 }
 
@@ -45,14 +46,17 @@ table! {
     loans (id) {
         id -> Uuid,
         user_id -> Uuid,
-        principal -> Numeric,
+        vault_name -> Varchar,
+        orig_principal -> Numeric,
+        balance -> Numeric,
         interest_rate -> Int2,
         issue_date -> Date,
         maturity_date -> Date,
         payment_frequency -> Int2,
         compound_frequency -> Int2,
         accrued_interest -> Numeric,
-        active -> Bool,
+        capitalized_interest -> Numeric,
+        state -> Varchar,
     }
 }
 
@@ -78,6 +82,7 @@ joinable!(bank_transactions -> accounts (account_id));
 joinable!(bank_transactions -> vaults (vault_name));
 joinable!(loan_payments -> loans (loan_id));
 joinable!(loans -> users (user_id));
+joinable!(loans -> vaults (vault_name));
 
 allow_tables_to_appear_in_same_query!(
     account_transactions,

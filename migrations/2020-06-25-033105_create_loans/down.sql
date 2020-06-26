@@ -1,1 +1,2 @@
-DROP TABLE loans, loan_payments;
+DROP TABLE loans,
+    loan_payments;

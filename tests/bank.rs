@@ -67,7 +67,7 @@ fn withdraw() {
 	
 	let deposit_amount = BigDecimal::from(500);
 	s.repo_suite.account_repo.increment(&account.id, &deposit_amount);
-	s.repo_suite.vault_repo.transact(BankTransactionType::Deposit, &s.vault.name, &deposit_amount);
+	s.repo_suite.vault_repo.increment(&s.vault.name, &deposit_amount);
 	
 	let withdraw_amount = BigDecimal::from(300);
 	let account = s.bank_service().withdraw(&account.id, &s.vault.name, &withdraw_amount).unwrap();
@@ -126,6 +126,7 @@ fn send_funds() {
 
 #[test]
 fn approve_loan() {
+	//todo: finish this test
 	let f = Fixture::new();
 	let s = Suite::setup(&f);
 	
@@ -134,13 +135,26 @@ fn approve_loan() {
 	
 	s.bank_service().approve_loan(loan::NewLoan {
 		user_id: bob.id,
-		principal: BigDecimal::from(1000),
+		vault_name: s.vault.name,
+		orig_principal: BigDecimal::from(1000),
+		curr_principal: BigDecimal::from(1000),
 		interest_rate: 200,
 		issue_date,
 		maturity_date: Loan::increment_date(&issue_date, 12),
 		payment_frequency: 1,
 		compound_frequency: 1,
 	});
+}
+
+#[test]
+fn pay_loan_payment_due() {
+	/*
+	create loan
+	pay loan
+	check vault and user account's state
+	
+	
+	 */
 }
 
 

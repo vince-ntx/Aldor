@@ -10,7 +10,7 @@ fn create_loan() {
 	
 	let loan = suite.loan_repo.create(NewLoan {
 		user_id: bob.id,
-		principal: Default::default(),
+		orig_principal: Default::default(),
 		interest_rate: 0,
 		issue_date: chrono::NaiveDate::from_yo(2020, 1),
 		maturity_date: chrono::NaiveDate::from_yo(2020, 1),
@@ -19,7 +19,7 @@ fn create_loan() {
 	}).unwrap();
 	
 	// create loan payment
-	let loan_payment = suite.loan_payment_repo.create(NewPayment {
+	let loan_payment = suite.loan_payment_repo.create_payment(NewPayment {
 		loan_id: loan.id,
 		principal_due: Default::default(),
 		interest_due: Default::default(),
