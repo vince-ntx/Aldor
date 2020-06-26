@@ -1,15 +1,52 @@
-use std::time::SystemTime;
-
 use bigdecimal::BigDecimal;
-use diesel::{deserialize, PgConnection, serialize};
-use diesel::deserialize::FromSql;
-use diesel::pg::Pg;
-use diesel::prelude::*;
-use diesel::serialize::{Output, ToSql};
-use diesel::sql_types::Varchar;
+use diesel::{
+	deserialize,
+	pg::Pg,
+	prelude::*,
+	serialize,
+	sql_types::Varchar,
+};
 
-use crate::{BankTransaction, BankTransactionType, PgPool, Result};
+use crate::{PgPool, Result};
 use crate::schema::bank_transactions;
+use crate::types::Time;
+
+#[derive(Queryable, Identifiable, PartialEq, Debug)]
+pub struct BankTransaction {
+	pub id: uuid::Uuid,
+	pub account_id: uuid::Uuid,
+	pub vault_name: String,
+	pub transaction_type: BankTransactionType,
+	pub amount: BigDecimal,
+	pub created_at: Time,
+}
+
+#[derive(Debug, AsExpression, FromSqlRow, Eq, PartialEq, EnumString, Display)]
+#[sql_type = "Varchar"]
+#[strum(serialize_all = "snake_case")]
+pub enum BankTransactionType {
+	Deposit,
+	Withdraw,
+	LoanPrincipal,
+	PrincipalRepayment,
+	InterestRepayment,
+}
+
+
+impl serialize::ToSql<Varchar, Pg> for BankTransactionType {
+	fn to_sql<W: std::io::Write>(&self, out: &mut serialize::Output<W, Pg>) -> serialize::Result {
+		serialize::ToSql::<Varchar, Pg>::to_sql(&self.to_string(), out)
+	}
+}
+
+impl deserialize::FromSql<Varchar, Pg> for BankTransactionType {
+	fn from_sql(bytes: Option<&[u8]>) -> deserialize::deserialize::Result<Self> {
+		let bytes = bytes.ok_or_else(|| "error deserializing from varchar")?;
+		let s = std::str::from_utf8(bytes)?;
+		
+		Ok(BankTransactionType::from_str(s).unwrap())
+	}
+}
 
 pub struct Repo {
 	db: PgPool

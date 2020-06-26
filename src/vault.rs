@@ -7,6 +7,12 @@ use crate::{BankTransactionType, PgPool, Result, Vault};
 use crate::BankTransactionType::PrincipalRepayment;
 use crate::schema::vaults;
 
+#[derive(Queryable, PartialEq, Debug)]
+pub struct Vault {
+	pub name: String,
+	pub amount: BigDecimal,
+}
+
 #[derive(Insertable)]
 #[table_name = "vaults"]
 pub struct NewVault<'a> {

@@ -1,9 +1,22 @@
 use diesel::PgConnection;
 use diesel::prelude::*;
 
-use crate::{PgPool, Result, User};
+use crate::{PgPool, Result};
 use crate::schema;
 use crate::schema::users;
+
+#[derive(Queryable, Identifiable, PartialEq, Debug)]
+pub struct User {
+	pub id: uuid::Uuid,
+	pub email: String,
+	pub first_name: String,
+	pub family_name: String,
+	pub phone_number: Option<String>,
+	/* TODO: add additional info here including
+	- date of birth
+	- home address
+	 */
+}
 
 pub struct Repo {
 	db: PgPool,
@@ -22,16 +35,16 @@ impl Repo {
 			.map_err(Into::into)
 	}
 	
-	pub fn find_user(&self, key: UserKey) -> Result<User> {
+	pub fn find_user(&self, key: FindKey) -> Result<User> {
 		let conn = &self.db.get()?;
 		match key {
-			UserKey::ID(id) => {
+			FindKey::ID(id) => {
 				users::table
 					.find(id)
 					.first::<User>(conn)
 					.map_err(Into::into)
 			}
-			UserKey::Email(email) => {
+			FindKey::Email(email) => {
 				users::table
 					.filter(users::email.eq(email))
 					.first::<User>(conn)
@@ -50,7 +63,7 @@ pub struct NewUser<'a> {
 	pub phone_number: Option<&'a str>,
 }
 
-pub enum UserKey<'a> {
+pub enum FindKey<'a> {
 	ID(uuid::Uuid),
 	Email(&'a str),
 }

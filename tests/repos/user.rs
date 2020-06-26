@@ -29,8 +29,8 @@ fn find_user_with_key() {
 	
 	// test cases using various UserKeys
 	let test_cases = vec![
-		UserKey::Email(email),
-		UserKey::ID(id)
+		FindKey::Email(email),
+		FindKey::ID(id)
 	];
 	
 	

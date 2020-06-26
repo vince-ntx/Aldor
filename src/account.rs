@@ -5,22 +5,68 @@ use std::time::SystemTime;
 use bigdecimal::BigDecimal;
 use diesel::{
 	deserialize,
-	deserialize::FromSql,
 	pg::Pg,
 	PgConnection,
 	prelude::*,
 	serialize,
-	serialize::{Output, ToSql},
 	sql_types::Varchar,
 };
 
-use crate::{Account, AccountType, BankTransactionType, error, PgPool, Result, schema::*};
+use crateschema::accounts;
+
+use crate::PgPool;
+use crate::types::{Result, Time};
+
+#[derive(Queryable, Identifiable, PartialEq, Debug)]
+#[belongs_to(User)]
+pub struct Account {
+	pub id: uuid::Uuid,
+	pub user_id: uuid::Uuid,
+	pub account_type: AccountType,
+	pub amount: BigDecimal,
+	pub created_at: Time,
+	pub is_open: bool,
+}
 
 #[derive(Insertable)]
 #[table_name = "accounts"]
 pub struct NewAccount {
 	pub user_id: uuid::Uuid,
 	pub account_type: AccountType,
+}
+
+#[derive(AsExpression, FromSqlRow, PartialEq, Debug)]
+#[sql_type = "Varchar"]
+pub enum AccountType {
+	Checking,
+	Savings,
+}
+
+impl AccountType {
+	pub fn as_str(&self) -> &str {
+		match self {
+			AccountType::Checking => "checking",
+			AccountType::Savings => "savings",
+		}
+	}
+}
+
+impl serialize::ToSql<Varchar, Pg> for AccountType {
+	fn to_sql<W: std::io::Write>(&self, out: &mut serialize::Output<W, Pg>) -> serialize::Result {
+		serialize::ToSql::<Varchar, Pg>::to_sql(self.as_str(), out)
+	}
+}
+
+impl deserialize::FromSql<Varchar, Pg> for AccountType {
+	fn from_sql(bytes: Option<&[u8]>) -> deserialize::Result<Self> {
+		let o = bytes.ok_or_else(|| "error deserializing from varchar")?;
+		let x = std::str::from_utf8(o)?;
+		match x {
+			"checking" => Ok(AccountType::Checking),
+			"savings" => Ok(AccountType::Savings),
+			_ => Err("invalid account type".into())
+		}
+	}
 }
 
 pub struct Repo {

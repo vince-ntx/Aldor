@@ -1,3 +1,5 @@
+use bank_api::account::{AccountType, NewAccount};
+
 use crate::common::*;
 
 #[test]

@@ -8,8 +8,17 @@ use diesel::prelude::*;
 use diesel::serialize::{Output, ToSql};
 use diesel::sql_types::Varchar;
 
-use crate::{AccountTransaction, BankTransactionType, PgPool, Result};
+use crate::{Date, Id, PgPool, Result};
 use crate::schema::account_transactions;
+
+#[derive(Queryable, Identifiable, PartialEq, Debug)]
+pub struct AccountTransaction {
+	pub id: Id,
+	pub sender_id: Id,
+	pub receiver_id: Id,
+	pub amount: BigDecimal,
+	pub created_at: Date,
+}
 
 pub struct Repo {
 	db: PgPool

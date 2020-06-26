@@ -59,12 +59,12 @@ impl Fixture {
 	
 	pub fn teardown(&self) {
 		let tables = vec![
+			"loan_payments",
+			"loans",
 			"account_transactions",
 			"bank_transactions",
 			"accounts",
 			"vaults",
-			"loan_payments",
-			"loans",
 			"users",
 		];
 		println!("\n--- clean up ---");
