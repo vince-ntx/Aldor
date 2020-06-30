@@ -4,6 +4,7 @@ use std::time::SystemTime;
 
 use bigdecimal::BigDecimal;
 use diesel::{
+	associations,
 	deserialize,
 	pg::Pg,
 	PgConnection,
@@ -12,13 +13,11 @@ use diesel::{
 	sql_types::Varchar,
 };
 
-use crateschema::accounts;
-
 use crate::PgPool;
+use crate::schema::accounts;
 use crate::types::{Result, Time};
 
 #[derive(Queryable, Identifiable, PartialEq, Debug)]
-#[belongs_to(User)]
 pub struct Account {
 	pub id: uuid::Uuid,
 	pub user_id: uuid::Uuid,

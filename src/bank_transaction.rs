@@ -1,3 +1,6 @@
+use std::str::FromStr;
+use std::string::ToString;
+
 use bigdecimal::BigDecimal;
 use diesel::{
 	deserialize,
@@ -6,10 +9,12 @@ use diesel::{
 	serialize,
 	sql_types::Varchar,
 };
+use strum;
+use strum_macros::{Display, EnumString};
 
-use crate::{PgPool, Result};
+use crate::PgPool;
 use crate::schema::bank_transactions;
-use crate::types::Time;
+use crate::types::{Result, Time};
 
 #[derive(Queryable, Identifiable, PartialEq, Debug)]
 pub struct BankTransaction {
@@ -21,7 +26,7 @@ pub struct BankTransaction {
 	pub created_at: Time,
 }
 
-#[derive(Debug, AsExpression, FromSqlRow, Eq, PartialEq, EnumString, Display)]
+#[derive(AsExpression, FromSqlRow, Eq, PartialEq, EnumString, Display, Debug)]
 #[sql_type = "Varchar"]
 #[strum(serialize_all = "snake_case")]
 pub enum BankTransactionType {
@@ -40,7 +45,7 @@ impl serialize::ToSql<Varchar, Pg> for BankTransactionType {
 }
 
 impl deserialize::FromSql<Varchar, Pg> for BankTransactionType {
-	fn from_sql(bytes: Option<&[u8]>) -> deserialize::deserialize::Result<Self> {
+	fn from_sql(bytes: Option<&[u8]>) -> deserialize::Result<Self> {
 		let bytes = bytes.ok_or_else(|| "error deserializing from varchar")?;
 		let s = std::str::from_utf8(bytes)?;
 		

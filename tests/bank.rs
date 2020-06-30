@@ -1,6 +1,11 @@
+use std::ops::Sub;
+
 use bigdecimal::BigDecimal;
 
 use bank_api::*;
+use bank_api::bank::{BankService, NewBankService};
+use bank_api::loan::{Loan, LoanPayment, LoanState};
+use bank_api::types::{Date, Result};
 use bank_api::vault::NewVault;
 
 use crate::common::{Fixture, Suite as RepoSuite, TestUsers};
@@ -121,12 +126,6 @@ fn send_funds() {
 }
 
 
-/*
-create loan
-approve loan
-pay loan
-check vault and user account's state
- */
 #[test]
 fn pay_loan_payment_due() -> Result<()> {
 	let f = Fixture::new();
@@ -136,6 +135,7 @@ fn pay_loan_payment_due() -> Result<()> {
 	let bob = f.user_factory.bob();
 	let orig_principal = BigDecimal::from(1000);
 	let issue_date = Date::from_ymd(2020, 1, 1);
+	let maturity_date = Loan::increment_date(&issue_date, 12);
 	let loan = s.repos.loan_repo.create(loan::NewLoan {
 		user_id: bob.id,
 		vault_name: vault.name,
@@ -143,7 +143,7 @@ fn pay_loan_payment_due() -> Result<()> {
 		balance: orig_principal.clone(),
 		interest_rate: 200,
 		issue_date,
-		maturity_date: Loan::increment_date(&issue_date, 12),
+		maturity_date,
 		payment_frequency: 1,
 		compound_frequency: 1,
 		state: Default::default(),
@@ -152,15 +152,62 @@ fn pay_loan_payment_due() -> Result<()> {
 	assert_eq!(loan.state, LoanState::PendingApproval);
 	
 	// activate loan
-	s.repos.loan_repo.activate(&loan.id)?;
+	let loan = s.repos.loan_repo.set_state(&loan.id, LoanState::Active)?;
+	assert_eq!(loan.state, LoanState::Active);
 	
 	// disburse funds
 	let bob_account = f.account_factory.checking_account(bob.id);
 	s.bank_service().disburse_loan(&loan, &bob_account.id);
+	let bob_account = s.repos.account_repo.find_by_id(&bob_account.id)?;
+	assert_eq!(bob_account.amount, loan.orig_principal);
 	
-	// check that first loan pay
-	let first_payment_due = s.repos.loan_payment_repo.find_first(&loan.id)?;
-	let first_payment_due = s.bank_service().pay_loan_payment_due(&first_payment_due.id, &bob_account.id)?;
+	//todo: add more assertions in this section
+	// check that first loan payment due
+	let next_payment_due = s.repos.loan_payment_repo.find_first_unpaid(&loan.id)?;
+	
+	let next_payment_due = s.bank_service().pay_loan_payment_due(&next_payment_due.id, &bob_account.id)?;
+	assert!(next_payment_due.principle_transaction_id.is_some());
+	assert!(next_payment_due.interest_transaction_id.is_some());
+	
+	let next_payment_due = s.repos.loan_payment_repo.find_first_unpaid(&loan.id)?;
+	assert!(next_payment_due.principle_transaction_id.is_none());
+	assert!(next_payment_due.interest_transaction_id.is_none());
+	
+	Ok(())
+}
+
+#[test]
+fn payback_loan_in_full() -> Result<()> {
+	let f = Fixture::new();
+	let s = Suite::setup(&f);
+	let vault = f.insert_main_vault(0);
+	
+	let bob = f.user_factory.bob();
+	let orig_principal = BigDecimal::from(1000);
+	let issue_date = Date::from_ymd(2020, 1, 1);
+	let maturity_date = Loan::increment_date(&issue_date, 6);
+	let mut loan = s.repos.loan_repo.create(loan::NewLoan {
+		user_id: bob.id,
+		vault_name: vault.name,
+		orig_principal: orig_principal.clone(),
+		balance: orig_principal.clone(),
+		interest_rate: 200,
+		issue_date,
+		maturity_date,
+		payment_frequency: 12,
+		compound_frequency: 12,
+		state: Default::default(),
+	})?;
+	
+	let bob_account = f.account_factory.checking_account(bob.id);
+	s.bank_service().disburse_loan(&loan, &bob_account.id);
+	
+	while loan.state.ne(&LoanState::Paid) {
+		loan = s.bank_service().accrue(&loan)?;
+		let next_payment = s.bank_service().create_next_loan_payment(&loan)?;
+		s.bank_service().pay_loan_payment_due(&next_payment.id, &bob_account.id);
+		loan = s.repos.loan_repo.find_by_id(&loan.id)?;
+	}
 	
 	Ok(())
 }

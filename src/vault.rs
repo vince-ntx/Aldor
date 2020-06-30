@@ -3,9 +3,10 @@ use std::ops::Neg;
 use bigdecimal::BigDecimal;
 use diesel::prelude::*;
 
-use crate::{BankTransactionType, PgPool, Result, Vault};
-use crate::BankTransactionType::PrincipalRepayment;
+use crate::PgPool;
+use crate::bank_transaction::BankTransactionType;
 use crate::schema::vaults;
+use crate::types::Result;
 
 #[derive(Queryable, PartialEq, Debug)]
 pub struct Vault {

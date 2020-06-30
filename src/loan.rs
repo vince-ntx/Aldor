@@ -1,7 +1,9 @@
 use std::ops::Add;
+use std::str::FromStr;
 
 use bigdecimal::{BigDecimal, Zero};
 use chrono::Datelike;
+use chrono::format::Numeric::Month;
 use diesel::{
 	deserialize::{self, FromSql},
 	PgConnection,
@@ -11,6 +13,8 @@ use diesel::{
 	sql_types::Varchar,
 };
 use diesel::pg::Pg;
+use strum;
+use strum_macros::{Display, EnumString};
 
 use crate::schema::{loan_payments, loans};
 use crate::types::{Date, Id, PgPool, Result};
@@ -115,9 +119,15 @@ impl Loan {
 		BigDecimal::from(self.interest_rate) / 10000
 	}
 	
-	pub fn months_til_maturity(&self) -> u16 {
-		let years = self.maturity_date.year() - self.issue_date.year();
-		let months = (self.maturity_date.month() - self.issue_date.month()) + (years * 12) as u32;
+	pub fn months_til_maturity(&self, previous_payment: Option<&LoanPayment>) -> u16 {
+		let start_date: Date;
+		if let Some(prev) = previous_payment {
+			start_date = prev.due_date;
+		} else {
+			start_date = self.issue_date;
+		}
+		let years = self.maturity_date.year() - start_date.year();
+		let months = (self.maturity_date.month() - start_date.month()) + (years * 12) as u32;
 		months as u16
 	}
 }
@@ -150,11 +160,20 @@ impl Repo {
 			.map_err(Into::into)
 	}
 	
-	pub fn activate(&self, id: &uuid::Uuid) -> Result<Loan> {
+	pub fn set_state(&self, id: &uuid::Uuid, state: LoanState) -> Result<Loan> {
 		let conn = &self.db.get()?;
 		diesel::update(loans::table)
 			.filter(loans::id.eq(id))
-			.set((loans::state.eq(LoanState::Active)))
+			.set((loans::state.eq(state)))
+			.get_result(conn)
+			.map_err(Into::into)
+	}
+	
+	pub fn set_accrued_interest(&self, id: &uuid::Uuid, accrued_interest: &BigDecimal) -> Result<Loan> {
+		let conn = &self.db.get()?;
+		diesel::update(loans::table)
+			.filter(loans::id.eq(id))
+			.set((loans::accrued_interest.eq(accrued_interest)))
 			.get_result(conn)
 			.map_err(Into::into)
 	}
@@ -207,11 +226,29 @@ impl PaymentRepo {
 			.map_err(Into::into)
 	}
 	
-	pub fn find_first(&self, loan_id: &Id) -> Result<LoanPayment> {
+	pub fn find_first_unpaid(&self, loan_id: &Id) -> Result<LoanPayment> {
 		let conn = &self.db.get()?;
 		loan_payments::table
-			.filter(loan_payments::loan_id.eq(loan_id))
+			.filter((
+				loan_payments::loan_id.eq(loan_id)
+					.and(loan_payments::principle_transaction_id.is_null())
+					.and(loan_payments::interest_transaction_id.is_null())
+			))
 			.select(loan_payments::all_columns)
+			.first(conn)
+			.map_err(Into::into)
+	}
+	
+	pub fn find_last_paid(&self, loan_id: &Id) -> Result<LoanPayment> {
+		let conn = &self.db.get()?;
+		loan_payments::table
+			.filter((
+				loan_payments::loan_id.eq(loan_id)
+					.and(loan_payments::principle_transaction_id.is_not_null())
+					.and(loan_payments::interest_transaction_id.is_not_null())
+			))
+			.select(loan_payments::all_columns)
+			.order(loan_payments::due_date.desc())
 			.first(conn)
 			.map_err(Into::into)
 	}

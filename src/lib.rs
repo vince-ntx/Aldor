@@ -17,6 +17,7 @@ use diesel::prelude::*;
 use diesel::r2d2::ConnectionManager;
 use diesel::serialize::{Output, ToSql};
 use diesel::sql_types::{Text, Varchar};
+use dotenv::dotenv;
 use serde::{Deserialize, Serialize};
 use strum;
 use strum::*;
@@ -26,9 +27,10 @@ use uuid::Uuid;
 
 pub use error::{Error, Kind};
 
+use crate::loan::Loan;
 use crate::types::PgPool;
 
-mod schema;
+pub mod schema;
 pub mod error;
 pub mod account;
 pub mod user;

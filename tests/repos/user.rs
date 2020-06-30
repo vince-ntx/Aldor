@@ -1,5 +1,8 @@
 use std::borrow::Borrow;
 
+use bank_api::schema::users;
+use bank_api::user::{FindKey, NewUser, User};
+
 use crate::common::*;
 
 #[test]

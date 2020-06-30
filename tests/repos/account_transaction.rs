@@ -1,4 +1,4 @@
-use bank_api::account_transaction::NewAccountTransaction;
+use bank_api::account_transaction::{AccountTransaction, NewAccountTransaction};
 
 use crate::common::*;
 

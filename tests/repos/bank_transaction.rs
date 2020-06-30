@@ -1,3 +1,5 @@
+use bank_api::bank_transaction::{BankTransaction, BankTransactionType, NewBankTransaction};
+
 use crate::common::*;
 
 #[test]

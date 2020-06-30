@@ -1,4 +1,5 @@
-use bank_api::account::{AccountType, NewAccount};
+use bank_api::account::{Account, AccountType, NewAccount};
+use bank_api::schema::accounts;
 
 use crate::common::*;
 

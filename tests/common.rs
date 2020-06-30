@@ -8,9 +8,12 @@ use diesel::query_builder::InsertStatement;
 use diesel::r2d2::ConnectionManager;
 use r2d2::PooledConnection;
 
-pub use bank_api::*;
-use bank_api::AccountType::Checking;
-use bank_api::vault::NewVault;
+use bank_api::*;
+use bank_api::account::{Account, AccountType, NewAccount};
+use bank_api::schema::{accounts, users, vaults};
+use bank_api::types::PgPool;
+use bank_api::user::{NewUser, User};
+use bank_api::vault::{NewVault, Vault};
 
 pub struct TestUsers {}
 
