@@ -12,7 +12,7 @@ use diesel::{
 use strum;
 use strum_macros::{Display, EnumString};
 
-use crate::PgPool;
+use crate::{db, PgPool};
 use crate::schema::bank_transactions;
 use crate::types::{Result, Time};
 
@@ -62,7 +62,7 @@ impl Repo {
 		Repo { db }
 	}
 	
-	pub fn create(&self, new_transaction: NewBankTransaction) -> Result<BankTransaction> {
+	pub fn create(&self, new_transaction: NewBankTransaction) -> db::Result<BankTransaction> {
 		let conn = &self.db.get()?;
 		diesel::insert_into(bank_transactions::table)
 			.values(&new_transaction)

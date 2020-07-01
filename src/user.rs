@@ -1,7 +1,7 @@
 use diesel::PgConnection;
 use diesel::prelude::*;
 
-use crate::{PgPool, Result};
+use crate::{db, PgPool, Result};
 use crate::schema;
 use crate::schema::users;
 
@@ -27,7 +27,7 @@ impl Repo {
 		Repo { db }
 	}
 	
-	pub fn create_user(&self, new_user: NewUser) -> Result<User> {
+	pub fn create_user(&self, new_user: NewUser) -> db::Result<User> {
 		let conn = &self.db.get()?;
 		diesel::insert_into(users::table)
 			.values(&new_user)
@@ -35,7 +35,7 @@ impl Repo {
 			.map_err(Into::into)
 	}
 	
-	pub fn find_user(&self, key: FindKey) -> Result<User> {
+	pub fn find_user(&self, key: FindKey) -> db::Result<User> {
 		let conn = &self.db.get()?;
 		match key {
 			FindKey::ID(id) => {

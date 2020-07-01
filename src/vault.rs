@@ -3,7 +3,7 @@ use std::ops::Neg;
 use bigdecimal::BigDecimal;
 use diesel::prelude::*;
 
-use crate::PgPool;
+use crate::{db, PgPool};
 use crate::bank_transaction::BankTransactionType;
 use crate::schema::vaults;
 use crate::types::Result;
@@ -29,7 +29,7 @@ pub struct Repo {
 impl Repo {
 	pub fn new(db: PgPool) -> Self { Repo { db } }
 	
-	pub fn find_by_name(&self, name: &str) -> Result<Vault> {
+	pub fn find_by_name(&self, name: &str) -> db::Result<Vault> {
 		let conn = &self.db.get()?;
 		vaults::table
 			.filter(vaults::name.eq(name))
@@ -38,16 +38,16 @@ impl Repo {
 			.map_err(Into::into)
 	}
 	
-	pub fn increment(&self, vault_name: &str, amount: &BigDecimal) -> Result<Vault> {
+	pub fn increment(&self, vault_name: &str, amount: &BigDecimal) -> db::Result<Vault> {
 		self.transact(vault_name, amount)
 	}
 	
-	pub fn decrement(&self, vault_name: &str, amount: &BigDecimal) -> Result<Vault> {
+	pub fn decrement(&self, vault_name: &str, amount: &BigDecimal) -> db::Result<Vault> {
 		let neg = amount.neg();
 		self.transact(vault_name, &neg)
 	}
 	
-	fn transact(&self, vault_name: &str, amount: &BigDecimal) -> Result<Vault> {
+	fn transact(&self, vault_name: &str, amount: &BigDecimal) -> db::Result<Vault> {
 		let conn = &self.db.get()?;
 		diesel::update(vaults::table)
 			.filter(vaults::name.eq(vault_name))

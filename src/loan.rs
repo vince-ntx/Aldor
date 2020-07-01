@@ -1,4 +1,4 @@
-use std::ops::Add;
+use std::ops::{Add, Div, Mul};
 use std::str::FromStr;
 
 use bigdecimal::{BigDecimal, Zero};
@@ -16,6 +16,7 @@ use diesel::pg::Pg;
 use strum;
 use strum_macros::{Display, EnumString};
 
+use crate::db;
 use crate::schema::{loan_payments, loans};
 use crate::types::{Date, Id, PgPool, Result};
 
@@ -35,6 +36,26 @@ pub struct Loan {
 	pub accrued_interest: BigDecimal,
 	pub capitalized_interest: BigDecimal,
 	pub state: LoanState,
+}
+
+impl Loan {
+	// Converts interest rate (in basis points) to BigDecimal
+	pub fn interest_rate(&self) -> BigDecimal {
+		BigDecimal::from(self.interest_rate) / 10000
+	}
+	
+	pub fn months_til_maturity(&self, curr_date: Date) -> u16 {
+		let years = self.maturity_date.year() - curr_date.year();
+		let months = (self.maturity_date.month() - curr_date.month()) + (years * 12) as u32;
+		months as u16
+	}
+	
+	pub fn principal_due(&self, curr_date: Date) -> BigDecimal {
+		let months_til_maturity = self.months_til_maturity(curr_date);
+		(&self.balance)
+			.div(&BigDecimal::from(months_til_maturity))
+			.mul(BigDecimal::from(self.payment_frequency))
+	}
 }
 
 #[derive(Insertable)]
@@ -94,45 +115,6 @@ pub struct LoanPayment {
 }
 
 
-impl Loan {
-	pub fn increment_date(issue_date: &Date, num_months: u16) -> Date {
-		let mut add_years: u32 = (num_months / 12) as u32;
-		let mut add_months: u32 = (num_months % 12) as u32;
-		
-		let maturity_month: u32;
-		
-		let total_months = issue_date.month().add(add_months as u32);
-		if total_months > 12 {
-			maturity_month = (total_months / 12);
-			add_years += 1;
-		} else {
-			maturity_month = total_months;
-		}
-		
-		let maturity_year: i32 = issue_date.year() + add_years as i32;
-		
-		chrono::NaiveDate::from_ymd(maturity_year, maturity_month, issue_date.day())
-	}
-	
-	// Converts interest rate (in basis points) to BigDecimal
-	pub fn interest_rate(&self) -> BigDecimal {
-		BigDecimal::from(self.interest_rate) / 10000
-	}
-	
-	pub fn months_til_maturity(&self, previous_payment: Option<&LoanPayment>) -> u16 {
-		let start_date: Date;
-		if let Some(prev) = previous_payment {
-			start_date = prev.due_date;
-		} else {
-			start_date = self.issue_date;
-		}
-		let years = self.maturity_date.year() - start_date.year();
-		let months = (self.maturity_date.month() - start_date.month()) + (years * 12) as u32;
-		months as u16
-	}
-}
-
-
 pub struct Repo {
 	db: PgPool,
 }
@@ -142,7 +124,7 @@ impl Repo {
 		Repo { db }
 	}
 	
-	pub fn create(&self, new_loan: NewLoan) -> Result<Loan> {
+	pub fn create(&self, new_loan: NewLoan) -> db::Result<Loan> {
 		//todo: validate orig_principal == curr_principal
 		let conn = &self.db.get()?;
 		diesel::insert_into(loans::table)
@@ -151,7 +133,7 @@ impl Repo {
 			.map_err(Into::into)
 	}
 	
-	pub fn find_by_id(&self, id: &uuid::Uuid) -> Result<Loan> {
+	pub fn find_by_id(&self, id: &uuid::Uuid) -> db::Result<Loan> {
 		let conn = &self.db.get()?;
 		loans::table
 			.find(id)
@@ -160,7 +142,7 @@ impl Repo {
 			.map_err(Into::into)
 	}
 	
-	pub fn set_state(&self, id: &uuid::Uuid, state: LoanState) -> Result<Loan> {
+	pub fn set_state(&self, id: &uuid::Uuid, state: LoanState) -> db::Result<Loan> {
 		let conn = &self.db.get()?;
 		diesel::update(loans::table)
 			.filter(loans::id.eq(id))
@@ -169,7 +151,7 @@ impl Repo {
 			.map_err(Into::into)
 	}
 	
-	pub fn set_accrued_interest(&self, id: &uuid::Uuid, accrued_interest: &BigDecimal) -> Result<Loan> {
+	pub fn set_accrued_interest(&self, id: &uuid::Uuid, accrued_interest: &BigDecimal) -> db::Result<Loan> {
 		let conn = &self.db.get()?;
 		diesel::update(loans::table)
 			.filter(loans::id.eq(id))
@@ -178,7 +160,7 @@ impl Repo {
 			.map_err(Into::into)
 	}
 	
-	pub fn decrement(&self, id: &Id, amount: &BigDecimal) -> Result<Loan> {
+	pub fn decrement(&self, id: &Id, amount: &BigDecimal) -> db::Result<Loan> {
 		let conn = &self.db.get()?;
 		diesel::update(loans::table)
 			.filter(loans::id.eq(id))
@@ -209,7 +191,7 @@ impl PaymentRepo {
 		PaymentRepo { db }
 	}
 	
-	pub fn create_payment(&self, new_payment: NewPayment) -> Result<LoanPayment> {
+	pub fn create_payment(&self, new_payment: NewPayment) -> db::Result<LoanPayment> {
 		let conn = &self.db.get()?;
 		diesel::insert_into(loan_payments::table)
 			.values(&new_payment)
@@ -217,7 +199,7 @@ impl PaymentRepo {
 			.map_err(Into::into)
 	}
 	
-	pub fn find_payment_by_id(&self, id: &Id) -> Result<LoanPayment> {
+	pub fn find_by_id(&self, id: &Id) -> db::Result<LoanPayment> {
 		let conn = &self.db.get()?;
 		loan_payments::table
 			.find(id)
@@ -226,7 +208,7 @@ impl PaymentRepo {
 			.map_err(Into::into)
 	}
 	
-	pub fn find_first_unpaid(&self, loan_id: &Id) -> Result<LoanPayment> {
+	pub fn find_first_unpaid(&self, loan_id: &Id) -> db::Result<LoanPayment> {
 		let conn = &self.db.get()?;
 		loan_payments::table
 			.filter((
@@ -239,7 +221,7 @@ impl PaymentRepo {
 			.map_err(Into::into)
 	}
 	
-	pub fn find_last_paid(&self, loan_id: &Id) -> Result<LoanPayment> {
+	pub fn find_last_paid(&self, loan_id: &Id) -> db::Result<LoanPayment> {
 		let conn = &self.db.get()?;
 		loan_payments::table
 			.filter((
@@ -253,13 +235,25 @@ impl PaymentRepo {
 			.map_err(Into::into)
 	}
 	
-	pub fn update_transaction_ids(&self, id: &Id, principle_transaction_id: &Id, interest_transaction_id: &Id) -> Result<LoanPayment> {
+	pub fn set_transaction_ids(&self, id: &Id, principle_transaction_id: &Id, interest_transaction_id: &Id) -> db::Result<LoanPayment> {
 		let conn = &self.db.get()?;
 		diesel::update(loan_payments::table)
 			.filter(loan_payments::id.eq(id))
 			.set((
 				(loan_payments::principle_transaction_id.eq(principle_transaction_id)),
 				(loan_payments::interest_transaction_id.eq(interest_transaction_id)),
+			))
+			.get_result(conn)
+			.map_err(Into::into)
+	}
+	
+	pub fn set_dues(&self, id: &Id, principal_due: &BigDecimal, interest_due: &BigDecimal) -> db::Result<LoanPayment> {
+		let conn = &self.db.get()?;
+		diesel::update(loan_payments::table)
+			.filter(loan_payments::id.eq(id))
+			.set((
+				(loan_payments::principal_due.eq(principal_due)),
+				(loan_payments::interest_due.eq(interest_due))
 			))
 			.get_result(conn)
 			.map_err(Into::into)

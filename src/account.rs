@@ -13,7 +13,7 @@ use diesel::{
 	sql_types::Varchar,
 };
 
-use crate::PgPool;
+use crate::{db, PgPool};
 use crate::schema::accounts;
 use crate::types::{Result, Time};
 
@@ -77,7 +77,7 @@ impl Repo {
 		Repo { db }
 	}
 	
-	pub fn create_account(&self, new_account: NewAccount) -> Result<Account> {
+	pub fn create_account(&self, new_account: NewAccount) -> db::Result<Account> {
 		let conn = &self.db.get()?;
 		diesel::insert_into(accounts::table)
 			.values(&new_account)
@@ -85,7 +85,7 @@ impl Repo {
 			.map_err(Into::into)
 	}
 	
-	pub fn find_accounts(&self, user_id: &uuid::Uuid) -> Result<Vec<Account>> {
+	pub fn find_accounts(&self, user_id: &uuid::Uuid) -> db::Result<Vec<Account>> {
 		let conn = &self.db.get()?;
 		accounts::table
 			.filter(accounts::user_id.eq(user_id))
@@ -94,7 +94,7 @@ impl Repo {
 			.map_err(Into::into)
 	}
 	
-	pub fn find_by_id(&self, account_id: &uuid::Uuid) -> Result<Account> {
+	pub fn find_by_id(&self, account_id: &uuid::Uuid) -> db::Result<Account> {
 		let conn = &self.db.get()?;
 		accounts::table
 			.filter(accounts::id.eq(account_id))
@@ -103,16 +103,16 @@ impl Repo {
 			.map_err(Into::into)
 	}
 	
-	pub fn increment(&self, account_id: &uuid::Uuid, amount: &BigDecimal) -> Result<Account> {
+	pub fn increment(&self, account_id: &uuid::Uuid, amount: &BigDecimal) -> db::Result<Account> {
 		self.transact(account_id, amount)
 	}
 	
-	pub fn decrement(&self, account_id: &uuid::Uuid, amount: &BigDecimal) -> Result<Account> {
+	pub fn decrement(&self, account_id: &uuid::Uuid, amount: &BigDecimal) -> db::Result<Account> {
 		let neg = amount.neg();
 		self.transact(account_id, &neg)
 	}
 	
-	fn transact(&self, account_id: &uuid::Uuid, amount: &BigDecimal) -> Result<Account> {
+	fn transact(&self, account_id: &uuid::Uuid, amount: &BigDecimal) -> db::Result<Account> {
 		let conn = &self.db.get()?;
 		diesel::update(accounts::table)
 			.filter(accounts::id.eq(account_id))

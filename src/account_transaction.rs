@@ -8,7 +8,7 @@ use diesel::prelude::*;
 use diesel::serialize::{Output, ToSql};
 use diesel::sql_types::Varchar;
 
-use crate::PgPool;
+use crate::{db, PgPool};
 use crate::schema::account_transactions;
 use crate::types::{Id, Result, Time};
 
@@ -30,7 +30,7 @@ impl Repo {
 		Repo { db }
 	}
 	
-	pub fn create(&self, new_transaction: NewAccountTransaction) -> Result<AccountTransaction> {
+	pub fn create(&self, new_transaction: NewAccountTransaction) -> db::Result<AccountTransaction> {
 		let conn = &self.db.get()?;
 		diesel::insert_into(account_transactions::table)
 			.values(&new_transaction)

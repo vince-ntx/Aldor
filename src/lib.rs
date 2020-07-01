@@ -25,7 +25,7 @@ use strum_macros::{Display, EnumString};
 use uuid;
 use uuid::Uuid;
 
-pub use error::{Error, Kind};
+pub use error::{Error, ErrorKind};
 
 use crate::loan::Loan;
 use crate::types::PgPool;
@@ -40,6 +40,7 @@ pub mod vault;
 pub mod loan;
 pub mod bank;
 pub mod types;
+pub mod db;
 
 
 /// Connect to PostgreSQL database
