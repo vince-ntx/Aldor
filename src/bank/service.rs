@@ -8,18 +8,21 @@ use crate::{account_transaction, db, loan};
 use crate::account::{self, Account};
 use crate::account_transaction::{AccountTransaction, NewAccountTransaction};
 use crate::bank_transaction::{self, BankTransactionType, NewBankTransaction};
-use crate::error::{Error, ErrorKind};
 use crate::loan::{Loan, LoanPayment, LoanState, NewPayment};
-use crate::types::{Date, DateExt, Id, PgPool, Result};
+use crate::types::{Date, DateExt, Id};
 use crate::user::{self, User};
 use crate::vault::{self, Vault};
+
+use super::error::{Error, ErrorKind};
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 pub trait Calendar {
 	fn current_date(&self) -> Date;
 }
 
-pub struct NewBankService<'a> {
-	pub db: PgPool,
+pub struct NewService<'a> {
+	pub db: db::PgPool,
 	pub user_repo: &'a user::Repo,
 	pub vault_repo: &'a vault::Repo,
 	pub account_repo: &'a account::Repo,
@@ -30,9 +33,9 @@ pub struct NewBankService<'a> {
 	pub calendar: &'a dyn Calendar,
 }
 
-pub struct BankService<'a> {
+pub struct Service<'a> {
 	//todo: abstract this out into a trait
-	db: PgPool,
+	db: db::PgPool,
 	user_repo: &'a user::Repo,
 	account_repo: &'a account::Repo,
 	vault_repo: &'a vault::Repo,
@@ -43,18 +46,18 @@ pub struct BankService<'a> {
 	calendar: &'a dyn Calendar,
 }
 
-impl<'a> BankService<'a> {
-	pub fn new(n: NewBankService<'a>) -> Self {
-		BankService {
-			db: n.db,
-			user_repo: n.user_repo,
-			account_repo: n.account_repo,
-			vault_repo: n.vault_repo,
-			bank_transaction_repo: n.bank_transaction_repo,
-			account_transaction_repo: n.account_transaction_repo,
-			loan_repo: n.loan_repo,
-			loan_payments_repo: n.loan_payment_repo,
-			calendar: n.calendar,
+impl<'a> Service<'a> {
+	pub fn new(v: NewService<'a>) -> Self {
+		Service {
+			db: v.db,
+			user_repo: v.user_repo,
+			account_repo: v.account_repo,
+			vault_repo: v.vault_repo,
+			bank_transaction_repo: v.bank_transaction_repo,
+			account_transaction_repo: v.account_transaction_repo,
+			loan_repo: v.loan_repo,
+			loan_payments_repo: v.loan_payment_repo,
+			calendar: v.calendar,
 		}
 	}
 	
@@ -133,7 +136,6 @@ impl<'a> BankService<'a> {
 			self.vault_repo.decrement(&loan.vault_name, &loan.orig_principal)?;
 			self.account_repo.increment(account_id, &loan.orig_principal)?;
 			
-			// self.create_next_loan_payment(&loan)?;
 			Ok(())
 		})
 	}
@@ -157,7 +159,8 @@ impl<'a> BankService<'a> {
 		}
 		
 		if due_date.gt(&loan.maturity_date) {
-			// return Err(Error::new(Kind;::));
+			let msg = format!("due date({}) exceeds maturity date({})", due_date, loan.maturity_date);
+			return Err(Error::new(ErrorKind::InvalidDate(msg)));
 		}
 		
 		self.loan_payments_repo.create_payment(

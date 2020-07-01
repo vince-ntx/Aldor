@@ -8,29 +8,21 @@ use diesel::query_builder::InsertStatement;
 use diesel::r2d2::ConnectionManager;
 use r2d2::PooledConnection;
 
-use bank_api::*;
-use bank_api::account::{Account, AccountType, NewAccount};
-use bank_api::schema::{accounts, users, vaults};
-use bank_api::types::PgPool;
-use bank_api::user::{NewUser, User};
-use bank_api::vault::{NewVault, Vault};
-
-pub struct TestUsers {}
-
-impl<'a> TestUsers {
-	pub const email_vince: &'a str = "vince@gmail.com";
-	pub const email_jack: &'a str = "jack@gmail.com";
-}
+use crate::{account, account_transaction, bank_transaction, db, loan, user, vault};
+use crate::account::{Account, AccountType, NewAccount};
+use crate::schema::{accounts, users, vaults};
+use crate::user::{NewUser, User};
+use crate::vault::{NewVault, Vault};
 
 pub struct Fixture {
-	pub pool: PgPool,
+	pub pool: db::PgPool,
 	pub user_factory: UserFactory,
 	pub account_factory: AccountFactory,
 }
 
 impl Fixture {
 	pub fn new() -> Self {
-		let pool = get_db_connection();
+		let pool = db::pg_connection();
 		let user_factory = UserFactory::new(pool.clone());
 		let account_factory = AccountFactory::new(pool.clone());
 		Fixture {
@@ -40,7 +32,7 @@ impl Fixture {
 		}
 	}
 	
-	pub fn pool(&self) -> PgPool {
+	pub fn pool(&self) -> db::PgPool {
 		self.pool.clone()
 	}
 	
@@ -115,11 +107,11 @@ fn test_suite_setup() {
 }
 
 pub struct UserFactory {
-	pool: PgPool
+	pool: db::PgPool
 }
 
 impl<'a> UserFactory {
-	fn new(pool: PgPool) -> Self {
+	fn new(pool: db::PgPool) -> Self {
 		UserFactory { pool }
 	}
 	
@@ -160,11 +152,11 @@ impl<'a> UserFactory {
 }
 
 pub struct AccountFactory {
-	pool: PgPool
+	pool: db::PgPool
 }
 
 impl<'a> AccountFactory {
-	pub fn new(pool: PgPool) -> Self {
+	pub fn new(pool: db::PgPool) -> Self {
 		AccountFactory { pool }
 	}
 	

@@ -2,13 +2,13 @@ use std::ops::Sub;
 
 use bigdecimal::{BigDecimal, Zero};
 
-use bank_api::*;
-use bank_api::bank::{BankService, Calendar, NewBankService};
-use bank_api::loan::{Loan, LoanPayment, LoanState};
-use bank_api::types::{Date, DateExt, Result};
-use bank_api::vault::NewVault;
-
-use crate::common::{Fixture, Suite as RepoSuite, TestUsers};
+use crate::bank::error::*;
+use crate::bank::service::*;
+use crate::loan;
+use crate::loan::LoanState;
+use crate::testutil::*;
+use crate::testutil::Suite as RepoSuite;
+use crate::types::{Date, DateExt};
 
 #[derive(Clone)]
 struct MockCalendar {
@@ -46,8 +46,8 @@ impl<'a> Suite<'a> {
 		}
 	}
 	
-	pub fn bank_service(&self) -> BankService {
-		BankService::new(NewBankService {
+	pub fn bank_service(&self) -> Service {
+		Service::new(NewService {
 			db: self.fixture.pool.clone(),
 			user_repo: &self.repos.user_repo,
 			account_repo: &self.repos.account_repo,
@@ -242,64 +242,4 @@ fn payback_loan_in_full() -> Result<()> {
 	
 	Ok(())
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

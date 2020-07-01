@@ -12,9 +12,9 @@ use diesel::{
 use strum;
 use strum_macros::{Display, EnumString};
 
-use crate::{db, PgPool};
+use crate::db;
 use crate::schema::bank_transactions;
-use crate::types::{Result, Time};
+use crate::types::Time;
 
 #[derive(Queryable, Identifiable, PartialEq, Debug)]
 pub struct BankTransaction {
@@ -54,11 +54,11 @@ impl deserialize::FromSql<Varchar, Pg> for BankTransactionType {
 }
 
 pub struct Repo {
-	db: PgPool
+	db: db::PgPool
 }
 
 impl Repo {
-	pub fn new(db: PgPool) -> Self {
+	pub fn new(db: db::PgPool) -> Self {
 		Repo { db }
 	}
 	
@@ -78,6 +78,43 @@ pub struct NewBankTransaction<'a> {
 	pub vault_name: &'a str,
 	pub transaction_type: BankTransactionType,
 	pub amount: &'a BigDecimal,
+}
+
+#[cfg(test)]
+mod tests {
+	use crate::testutil::*;
+	
+	use super::*;
+	
+	#[test]
+	fn create_bank_transaction() {
+		let mut fixture = Fixture::new();
+		let suite = Suite::setup();
+		let user = fixture.user_factory.bob();
+		
+		let checking = fixture.account_factory.checking_account(user.id);
+		let vault = fixture.insert_main_vault(0);
+		
+		let amount = BigDecimal::from(250);
+		
+		let got = suite.bank_transaction_repo.create(NewBankTransaction {
+			account_id: &checking.id,
+			vault_name: &vault.name,
+			transaction_type: BankTransactionType::Deposit,
+			amount: &amount,
+		}).unwrap();
+		
+		let want = BankTransaction {
+			id: got.id,
+			account_id: checking.id,
+			vault_name: vault.name,
+			transaction_type: BankTransactionType::Deposit,
+			amount,
+			created_at: got.created_at,
+		};
+		
+		assert_eq!(got, want);
+	}
 }
 
 

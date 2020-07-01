@@ -3,8 +3,8 @@ use std::fmt;
 
 use crate::{account, db};
 
-// an error that can occur in this crate
-#[derive(Debug)]
+/// An error that can occur when interacting with
+#[derive(Debug, PartialEq)]
 pub struct Error {
 	kind: ErrorKind,
 }
@@ -20,17 +20,19 @@ impl Error {
 }
 
 /// The kind of an error that can occur.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ErrorKind {
 	Database(db::Error),
 	InadequateFunds,
+	InvalidDate(String),
 }
 
 impl fmt::Display for Error {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match &self.kind {
 			ErrorKind::Database(e) => write!(f, "db error: {}", e),
-			ErrorKind::InadequateFunds => write!(f, "not enough funds in account")
+			ErrorKind::InadequateFunds => write!(f, "not enough funds in account"),
+			ErrorKind::InvalidDate(msg) => write!(f, "invalid date: {}", msg)
 		}
 	}
 }
@@ -52,7 +54,4 @@ impl From<diesel::result::Error> for Error {
 		Error::new(ErrorKind::Database(db::Error::from(e)))
 	}
 }
-
-
-
 

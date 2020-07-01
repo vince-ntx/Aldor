@@ -18,7 +18,7 @@ use strum_macros::{Display, EnumString};
 
 use crate::db;
 use crate::schema::{loan_payments, loans};
-use crate::types::{Date, Id, PgPool, Result};
+use crate::types::{Date, Id};
 
 #[derive(Queryable, Identifiable, Debug)]
 pub struct Loan {
@@ -116,11 +116,11 @@ pub struct LoanPayment {
 
 
 pub struct Repo {
-	db: PgPool,
+	db: db::PgPool,
 }
 
 impl Repo {
-	pub fn new(db: PgPool) -> Self {
+	pub fn new(db: db::PgPool) -> Self {
 		Repo { db }
 	}
 	
@@ -183,11 +183,11 @@ pub struct NewPayment {
 }
 
 pub struct PaymentRepo {
-	db: PgPool,
+	db: db::PgPool,
 }
 
 impl PaymentRepo {
-	pub fn new(db: PgPool) -> Self {
+	pub fn new(db: db::PgPool) -> Self {
 		PaymentRepo { db }
 	}
 	
@@ -261,4 +261,38 @@ impl PaymentRepo {
 }
 
 
-
+#[cfg(test)]
+mod tests {
+	use crate::testutil::*;
+	
+	use super::*;
+	
+	#[test]
+	fn create_loan() {
+		let f = Fixture::new();
+		let suite = Suite::setup();
+		let bob = f.user_factory.bob();
+		let vault = f.insert_main_vault(0);
+		
+		let loan = suite.loan_repo.create(NewLoan {
+			user_id: bob.id,
+			vault_name: vault.name,
+			orig_principal: Default::default(),
+			balance: Default::default(),
+			interest_rate: 0,
+			issue_date: chrono::NaiveDate::from_yo(2020, 1),
+			maturity_date: chrono::NaiveDate::from_yo(2020, 1),
+			payment_frequency: 0,
+			compound_frequency: 0,
+			state: Default::default(),
+		}).unwrap();
+		
+		// create loan payment
+		let loan_payment = suite.loan_payment_repo.create_payment(NewPayment {
+			loan_id: loan.id,
+			principal_due: Default::default(),
+			interest_due: Default::default(),
+			due_date: chrono::NaiveDate::from_yo(2020, 1),
+		});
+	}
+}

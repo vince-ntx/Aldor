@@ -1,20 +1,35 @@
-use std::fmt;
+use std::{env, fmt};
 
+use diesel::PgConnection;
+use diesel::r2d2::ConnectionManager;
 use diesel::result::DatabaseErrorKind::UniqueViolation;
 use diesel::result::Error::{DatabaseError, NotFound};
+use dotenv::dotenv;
 use r2d2;
 use uuid::Error as uuidError;
 
-use crate::error;
-
 pub type Result<T> = std::result::Result<T, Error>;
+pub type PgPool = r2d2::Pool<ConnectionManager<PgConnection>>;
 
-#[derive(Debug)]
+/// Connect to PostgreSQL database
+pub fn pg_connection() -> PgPool {
+	dotenv().ok();
+	
+	let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+	
+	let manager = ConnectionManager::<PgConnection>::new(&database_url);
+	let pool = r2d2::Pool::builder().build(manager)
+		.expect("Failed to create pool.");
+	
+	pool
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Error {
 	RecordAlreadyExists,
 	RecordNotFound,
 	DatabaseError(diesel::result::Error),
-	Connection(r2d2::Error),
+	Connection(String),
 }
 
 impl fmt::Display for Error {
@@ -43,6 +58,7 @@ impl From<diesel::result::Error> for Error {
 
 impl From<r2d2::Error> for Error {
 	fn from(e: r2d2::Error) -> Self {
-		Error::Connection(e)
+		Error::Connection(e.to_string())
 	}
 }
+

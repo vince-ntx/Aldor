@@ -3,10 +3,9 @@ use std::ops::Neg;
 use bigdecimal::BigDecimal;
 use diesel::prelude::*;
 
-use crate::{db, PgPool};
 use crate::bank_transaction::BankTransactionType;
+use crate::db;
 use crate::schema::vaults;
-use crate::types::Result;
 
 #[derive(Queryable, PartialEq, Debug)]
 pub struct Vault {
@@ -23,11 +22,11 @@ pub struct NewVault<'a> {
 }
 
 pub struct Repo {
-	db: PgPool,
+	db: db::PgPool,
 }
 
 impl Repo {
-	pub fn new(db: PgPool) -> Self { Repo { db } }
+	pub fn new(db: db::PgPool) -> Self { Repo { db } }
 	
 	pub fn find_by_name(&self, name: &str) -> db::Result<Vault> {
 		let conn = &self.db.get()?;
