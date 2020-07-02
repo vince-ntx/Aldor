@@ -25,6 +25,7 @@ pub enum ErrorKind {
 	Database(db::Error),
 	InadequateFunds,
 	InvalidDate(String),
+	InvalidStateNegativeValue,
 }
 
 impl fmt::Display for Error {
@@ -32,7 +33,8 @@ impl fmt::Display for Error {
 		match &self.kind {
 			ErrorKind::Database(e) => write!(f, "db error: {}", e),
 			ErrorKind::InadequateFunds => write!(f, "not enough funds in account"),
-			ErrorKind::InvalidDate(msg) => write!(f, "invalid date: {}", msg)
+			ErrorKind::InvalidDate(msg) => write!(f, "invalid date: {}", msg),
+			ErrorKind::InvalidStateNegativeValue => write!(f, "invalid state: negative value not allowed")
 		}
 	}
 }

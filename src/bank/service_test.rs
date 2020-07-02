@@ -10,24 +10,6 @@ use crate::testutil::*;
 use crate::testutil::Suite as RepoSuite;
 use crate::types::{Date, DateExt};
 
-#[derive(Clone)]
-struct MockCalendar {
-	pub curr_date: Date
-}
-
-impl MockCalendar {
-	fn set_curr_date(&mut self, date: Date) {
-		self.curr_date = date;
-	}
-}
-
-
-impl Calendar for MockCalendar {
-	fn current_date(&self) -> Date {
-		self.curr_date
-	}
-}
-
 struct Suite<'a> {
 	pub repos: RepoSuite,
 	pub fixture: &'a Fixture,
@@ -60,6 +42,25 @@ impl<'a> Suite<'a> {
 		})
 	}
 }
+
+#[derive(Clone)]
+struct MockCalendar {
+	pub curr_date: Date
+}
+
+impl MockCalendar {
+	fn set_curr_date(&mut self, date: Date) {
+		self.curr_date = date;
+	}
+}
+
+
+impl Calendar for MockCalendar {
+	fn current_date(&self) -> Date {
+		self.curr_date
+	}
+}
+
 
 #[test]
 fn deposit() {

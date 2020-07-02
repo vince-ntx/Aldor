@@ -1,7 +1,8 @@
 mod service;
 mod error;
+
 #[cfg(test)]
-mod test;
+mod service_test;
 
 
 

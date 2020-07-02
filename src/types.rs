@@ -1,12 +1,7 @@
-use std::ops::Add;
-
 use chrono::{Datelike, DateTime, NaiveDate, Utc};
-use diesel::PgConnection;
-use diesel::r2d2::ConnectionManager;
 
 pub type Id = uuid::Uuid;
 pub type Time = DateTime<Utc>;
-
 pub type Date = NaiveDate;
 
 impl DateExt for Date {
@@ -16,7 +11,7 @@ impl DateExt for Date {
 		
 		let result_month: u32;
 		
-		let total_months = self.month().add(add_months as u32);
+		let total_months = self.month() + (add_months as u32);
 		if total_months > 12 {
 			result_month = (total_months / 12);
 			add_years += 1;

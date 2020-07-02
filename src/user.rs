@@ -102,7 +102,7 @@ mod tests {
 		let email = user.email.borrow();
 		let id = user.id;
 		
-		// test cases using various UserKeys
+		// test cases using various FindKeys
 		let test_cases = vec![
 			FindKey::Email(email),
 			FindKey::ID(id)
