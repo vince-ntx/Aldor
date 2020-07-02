@@ -268,7 +268,7 @@ impl<'a> Service<'a> {
 		let principal_due = loan.principal_due(self.calendar.current_date());
 		let interest_due = loan.accrued_interest.clone();
 		
-		self.loan_payments_repo.create_payment(
+		self.loan_payments_repo.create(
 			{
 				NewPayment {
 					loan_id: loan.id,
@@ -280,8 +280,8 @@ impl<'a> Service<'a> {
 	}
 }
 
+/// Used by Service to get the current date
 pub trait Calendar {
-	/// Gets the current date
 	fn current_date(&self) -> Date {
 		chrono::Utc::today().naive_utc()
 	}

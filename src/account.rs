@@ -12,18 +12,25 @@ use diesel::{
 	serialize,
 	sql_types::Varchar,
 };
+use strum;
+use strum_macros::{Display, EnumString};
 
 use crate::db;
 use crate::schema::accounts;
 use crate::types::Time;
 
+/// The user's financial account maintained by the bank to hold and manage funds
+/// A user may have multiple accounts
 #[derive(Queryable, Identifiable, PartialEq, Debug)]
 pub struct Account {
 	pub id: uuid::Uuid,
+	/// the account owner's user id
 	pub user_id: uuid::Uuid,
 	pub account_type: AccountType,
+	/// the account balance
 	pub amount: BigDecimal,
 	pub created_at: Time,
+	/// indicates whether an account is currently open/closed for use
 	pub is_open: bool,
 }
 
@@ -34,25 +41,17 @@ pub struct NewAccount {
 	pub account_type: AccountType,
 }
 
-#[derive(AsExpression, FromSqlRow, PartialEq, Debug)]
+#[derive(AsExpression, FromSqlRow, PartialEq, EnumString, Display, Debug)]
 #[sql_type = "Varchar"]
+#[strum(serialize_all = "snake_case")]
 pub enum AccountType {
 	Checking,
 	Savings,
 }
 
-impl AccountType {
-	pub fn as_str(&self) -> &str {
-		match self {
-			AccountType::Checking => "checking",
-			AccountType::Savings => "savings",
-		}
-	}
-}
-
 impl serialize::ToSql<Varchar, Pg> for AccountType {
 	fn to_sql<W: std::io::Write>(&self, out: &mut serialize::Output<W, Pg>) -> serialize::Result {
-		serialize::ToSql::<Varchar, Pg>::to_sql(self.as_str(), out)
+		serialize::ToSql::<Varchar, Pg>::to_sql(&self.to_string(), out)
 	}
 }
 
@@ -68,6 +67,7 @@ impl deserialize::FromSql<Varchar, Pg> for AccountType {
 	}
 }
 
+/// Data store implementation for operating on accounts in the database
 pub struct Repo {
 	db: db::PgPool,
 }
@@ -112,6 +112,7 @@ impl Repo {
 		self.transact(account_id, &neg)
 	}
 	
+	/// Helper method for incrementing/decrementing funds from an account
 	fn transact(&self, account_id: &uuid::Uuid, amount: &BigDecimal) -> db::Result<Account> {
 		let conn = &self.db.get()?;
 		diesel::update(accounts::table)
@@ -130,7 +131,7 @@ mod tests {
 	
 	#[test]
 	fn create_account() {
-		let mut fixture = Fixture::new();
+		let fixture = Fixture::new();
 		let suite = Suite::setup();
 		let user = fixture.user_factory.bob();
 		
@@ -147,7 +148,7 @@ mod tests {
 	
 	#[test]
 	fn find_accounts_for_user() {
-		let mut fixture = Fixture::new();
+		let fixture = Fixture::new();
 		let suite = Suite::setup();
 		let user = fixture.user_factory.bob();
 		
@@ -164,7 +165,7 @@ mod tests {
 	
 	#[test]
 	fn account_deposit_and_withdrawal() {
-		let mut fixture = Fixture::new();
+		let fixture = Fixture::new();
 		let suite = Suite::setup();
 		let user = fixture.user_factory.bob();
 		

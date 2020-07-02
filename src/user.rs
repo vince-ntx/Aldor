@@ -5,6 +5,7 @@ use crate::db;
 use crate::schema;
 use crate::schema::users;
 
+/// User represents a bank customer
 #[derive(Queryable, Identifiable, PartialEq, Debug)]
 pub struct User {
 	pub id: uuid::Uuid,
@@ -18,6 +19,7 @@ pub struct User {
 	 */
 }
 
+/// Data store implementation for operating on users in the database
 pub struct Repo {
 	db: db::PgPool,
 }
@@ -27,7 +29,7 @@ impl Repo {
 		Repo { db }
 	}
 	
-	pub fn create_user(&self, new_user: NewUser) -> db::Result<User> {
+	pub fn create(&self, new_user: NewUser) -> db::Result<User> {
 		let conn = &self.db.get()?;
 		diesel::insert_into(users::table)
 			.values(&new_user)
@@ -35,7 +37,7 @@ impl Repo {
 			.map_err(Into::into)
 	}
 	
-	pub fn find_user(&self, key: FindKey) -> db::Result<User> {
+	pub fn find_by_key(&self, key: FindKey) -> db::Result<User> {
 		let conn = &self.db.get()?;
 		match key {
 			FindKey::ID(id) => {
@@ -81,7 +83,7 @@ mod tests {
 	fn insert_user() {
 		let fixture = Fixture::new();
 		let suite = Suite::setup();
-		let user = suite.user_repo.create_user(NewUser {
+		let user = suite.user_repo.create(NewUser {
 			email: "example@gmail.com",
 			first_name: "Tom",
 			family_name: "Riddle",
@@ -94,7 +96,7 @@ mod tests {
 	
 	#[test]
 	fn find_user_with_key() {
-		let mut fixture = Fixture::new();
+		let fixture = Fixture::new();
 		let user = fixture.user_factory.bob();
 		
 		let suite = Suite::setup();
@@ -110,7 +112,7 @@ mod tests {
 		
 		
 		for user_key in test_cases {
-			let got = suite.user_repo.find_user(user_key)
+			let got = suite.user_repo.find_by_key(user_key)
 				.expect("found user");
 			
 			assert_eq!(user, got)

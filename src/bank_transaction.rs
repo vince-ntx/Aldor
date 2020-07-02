@@ -16,10 +16,13 @@ use crate::db;
 use crate::schema::bank_transactions;
 use crate::types::Time;
 
+/// Transaction between a user's account and the bank
 #[derive(Queryable, Identifiable, PartialEq, Debug)]
 pub struct BankTransaction {
 	pub id: uuid::Uuid,
+	/// The user's account id
 	pub account_id: uuid::Uuid,
+	/// The bank vault's unique identifier
 	pub vault_name: String,
 	pub transaction_type: BankTransactionType,
 	pub amount: BigDecimal,
@@ -30,10 +33,15 @@ pub struct BankTransaction {
 #[sql_type = "Varchar"]
 #[strum(serialize_all = "snake_case")]
 pub enum BankTransactionType {
+	/// A user putting funds into their account
 	Deposit,
+	/// A user removing funds from their account
 	Withdraw,
+	/// Funds that are borrowed from the bank
 	LoanPrincipal,
+	/// Principal repayment on a loan
 	PrincipalRepayment,
+	/// Interest repayment on a loan
 	InterestRepayment,
 }
 
@@ -53,6 +61,16 @@ impl deserialize::FromSql<Varchar, Pg> for BankTransactionType {
 	}
 }
 
+#[derive(Insertable)]
+#[table_name = "bank_transactions"]
+pub struct NewBankTransaction<'a> {
+	pub account_id: &'a uuid::Uuid,
+	pub vault_name: &'a str,
+	pub transaction_type: BankTransactionType,
+	pub amount: &'a BigDecimal,
+}
+
+/// Data store implementation for operating on bank_transactions in the database
 pub struct Repo {
 	db: db::PgPool
 }
@@ -71,15 +89,6 @@ impl Repo {
 	}
 }
 
-#[derive(Insertable)]
-#[table_name = "bank_transactions"]
-pub struct NewBankTransaction<'a> {
-	pub account_id: &'a uuid::Uuid,
-	pub vault_name: &'a str,
-	pub transaction_type: BankTransactionType,
-	pub amount: &'a BigDecimal,
-}
-
 #[cfg(test)]
 mod tests {
 	use crate::testutil::*;
@@ -88,7 +97,7 @@ mod tests {
 	
 	#[test]
 	fn create_bank_transaction() {
-		let mut fixture = Fixture::new();
+		let fixture = Fixture::new();
 		let suite = Suite::setup();
 		let user = fixture.user_factory.bob();
 		

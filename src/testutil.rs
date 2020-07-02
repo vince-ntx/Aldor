@@ -1,3 +1,6 @@
+/*!
+testutil provides tools for running integration tests
+*/
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
@@ -14,6 +17,10 @@ use crate::schema::{accounts, users, vaults};
 use crate::user::{NewUser, User};
 use crate::vault::{NewVault, Vault};
 
+/// Test fixture that includes:
+/// - db connection pool
+/// - factories for generating test data
+/// - helper methods for creating common objects
 pub struct Fixture {
 	pub pool: db::PgPool,
 	pub user_factory: UserFactory,
@@ -32,15 +39,11 @@ impl Fixture {
 		}
 	}
 	
-	pub fn pool(&self) -> db::PgPool {
-		self.pool.clone()
-	}
-	
 	pub fn conn(&self) -> PooledConnection<ConnectionManager<PgConnection>> {
 		self.pool.get().unwrap()
 	}
 	
-	
+	/// Inserts a bank vault named "main" with an initial amount
 	pub fn insert_main_vault(&self, initial_amount: u32) -> Vault {
 		let initial_amount = BigDecimal::from(initial_amount);
 		diesel::insert_into(vaults::table)
@@ -53,6 +56,7 @@ impl Fixture {
 	}
 	
 	pub fn teardown(&self) {
+		// Order matters here since tables hold foreign keys
 		let tables = vec![
 			"loan_payments",
 			"loans",
@@ -72,6 +76,7 @@ impl Fixture {
 	}
 }
 
+/// Suite holds a repository for each table
 pub struct Suite {
 	pub user_repo: user::Repo,
 	pub account_repo: account::Repo,
@@ -106,6 +111,7 @@ fn test_suite_setup() {
 	let _suite = Suite::setup();
 }
 
+/// Geneartes User test data
 pub struct UserFactory {
 	pool: db::PgPool
 }
@@ -151,6 +157,7 @@ impl<'a> UserFactory {
 	}
 }
 
+/// Generates Account test data
 pub struct AccountFactory {
 	pool: db::PgPool
 }

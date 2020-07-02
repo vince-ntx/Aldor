@@ -4,6 +4,10 @@ pub type Id = uuid::Uuid;
 pub type Time = DateTime<Utc>;
 pub type Date = NaiveDate;
 
+pub trait DateExt {
+	fn increment_date_by_months(&self, num_months: u16) -> Date;
+}
+
 impl DateExt for Date {
 	fn increment_date_by_months(&self, num_months: u16) -> Date {
 		let mut add_years: u32 = (num_months / 12) as u32;
@@ -25,6 +29,3 @@ impl DateExt for Date {
 	}
 }
 
-pub trait DateExt {
-	fn increment_date_by_months(&self, num_months: u16) -> Date;
-}

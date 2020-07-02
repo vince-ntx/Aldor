@@ -7,6 +7,7 @@ use crate::bank_transaction::BankTransactionType;
 use crate::db;
 use crate::schema::vaults;
 
+/// Vault tracks funds stored by the bank
 #[derive(Queryable, PartialEq, Debug)]
 pub struct Vault {
 	pub name: String,
@@ -21,6 +22,7 @@ pub struct NewVault<'a> {
 	pub initial_amount: BigDecimal,
 }
 
+/// Data store implementation for operating on vaults in the database
 pub struct Repo {
 	db: db::PgPool,
 }

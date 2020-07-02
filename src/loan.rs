@@ -20,36 +20,58 @@ use crate::db;
 use crate::schema::{loan_payments, loans};
 use crate::types::{Date, Id};
 
+/// Loan issued by the bank to a user
+/// Loans are amortized and the borrower must make periodic payments that cover both principal and interest
 #[derive(Queryable, Identifiable, Debug)]
 pub struct Loan {
 	pub id: Id,
+	/// id of the user (borrower)
 	pub user_id: Id,
+	/// unique name of the vault where loan funds will be drawn from
 	pub vault_name: String,
+	/// the amount of the loan that would be repaid over the lifetime of the loan
 	pub orig_principal: BigDecimal,
-	// curr_principal = orig_principal - principal payments + capitalized interest
+	/// the balance is equal to (original principal + accrued/capitalized interest) - (principal + interest payments)
 	pub balance: BigDecimal,
-	pub interest_rate: i16,
+	/// the interest rate is represented in basis points (one hundreth of one percent)
+	/// e.g. 2% is 200 basis points, .5% is 50 basis points
+	interest_rate: i16,
+	/// the date in which the loan is issued and begins accruing interest
 	pub issue_date: Date,
+	/// the date in which the final payment is due
 	pub maturity_date: Date,
+	/// the payment frequency represents the number of months between payments
 	pub payment_frequency: i16,
+	/// the compound frequency represents the number of months between compounding
+	///
+	/// when a loan compounds, the unpaid accrued interest on the loan is capitalized and added to loan balance
+	/// and future interest accrued will take into account the capitalized interest
 	pub compound_frequency: i16,
+	/// the accrued interest on the loan
 	pub accrued_interest: BigDecimal,
+	/// tracks the amount of capitalized interest on the loan
 	pub capitalized_interest: BigDecimal,
+	/// the state of the loan
 	pub state: LoanState,
 }
 
 impl Loan {
-	// Converts interest rate (in basis points) to BigDecimal
+	/// Gets the interest rate and converts it from basis points to BigDecimal
 	pub fn interest_rate(&self) -> BigDecimal {
-		BigDecimal::from(self.interest_rate) / 10000
+		BigDecimal::from(self.interest_rate) / 10_000
 	}
 	
+	/// Calculates the months til maturity from the current date
 	pub fn months_til_maturity(&self, curr_date: Date) -> u16 {
 		let years = self.maturity_date.year() - curr_date.year();
 		let months = (self.maturity_date.month() - curr_date.month()) + (years * 12) as u32;
 		months as u16
 	}
 	
+	/// Calculates the principle due for a pay period
+	///
+	/// # Arguments
+	/// `curr_date` - determines the months left til maturity and is used to calculate the principal payment
 	pub fn principal_due(&self, curr_date: Date) -> BigDecimal {
 		let months_til_maturity = self.months_til_maturity(curr_date);
 		(&self.balance)
@@ -58,28 +80,18 @@ impl Loan {
 	}
 }
 
-#[derive(Insertable)]
-#[table_name = "loans"]
-pub struct NewLoan {
-	pub user_id: uuid::Uuid,
-	pub vault_name: String,
-	pub orig_principal: BigDecimal,
-	pub balance: BigDecimal,
-	pub interest_rate: i16,
-	pub issue_date: Date,
-	pub maturity_date: Date,
-	pub payment_frequency: i16,
-	pub compound_frequency: i16,
-	pub state: LoanState,
-}
 
 #[derive(Debug, AsExpression, FromSqlRow, Eq, PartialEq, EnumString, Display)]
 #[sql_type = "Varchar"]
 #[strum(serialize_all = "snake_case")]
 pub enum LoanState {
+	/// The loan is pending approval
 	PendingApproval,
+	/// Active indicates the loan balance is being repaid within the specified terms
 	Active,
+	/// All principal and interest payments have been fulfilled
 	Paid,
+	/// The borrower has failed to make an principal or interest payment within the specified terms
 	Default,
 }
 
@@ -102,19 +114,22 @@ impl FromSql<Varchar, Pg> for LoanState {
 	}
 }
 
-
-#[derive(Queryable, Identifiable, Debug)]
-pub struct LoanPayment {
-	pub id: uuid::Uuid,
-	pub loan_id: uuid::Uuid,
-	pub principal_due: BigDecimal,
-	pub interest_due: BigDecimal,
-	pub due_date: Date,
-	pub principle_transaction_id: Option<uuid::Uuid>,
-	pub interest_transaction_id: Option<uuid::Uuid>,
+#[derive(Insertable)]
+#[table_name = "loans"]
+pub struct NewLoan {
+	pub user_id: uuid::Uuid,
+	pub vault_name: String,
+	pub orig_principal: BigDecimal,
+	pub balance: BigDecimal,
+	pub interest_rate: i16,
+	pub issue_date: Date,
+	pub maturity_date: Date,
+	pub payment_frequency: i16,
+	pub compound_frequency: i16,
+	pub state: LoanState,
 }
 
-
+/// Data store implementation for operating on loans in the database
 pub struct Repo {
 	db: db::PgPool,
 }
@@ -173,6 +188,22 @@ impl Repo {
 	}
 }
 
+
+/// Loan payment due based on the terms of the loan
+#[derive(Queryable, Identifiable, Debug)]
+pub struct LoanPayment {
+	pub id: uuid::Uuid,
+	pub loan_id: uuid::Uuid,
+	pub principal_due: BigDecimal,
+	pub interest_due: BigDecimal,
+	pub due_date: Date,
+	/// id of the principal payment transaction
+	pub principle_transaction_id: Option<uuid::Uuid>,
+	/// id of the interest payment transaction
+	pub interest_transaction_id: Option<uuid::Uuid>,
+}
+
+
 #[derive(Insertable)]
 #[table_name = "loan_payments"]
 pub struct NewPayment {
@@ -182,6 +213,7 @@ pub struct NewPayment {
 	pub due_date: Date,
 }
 
+/// Data store implementation for operating on loan_payments in the database
 pub struct PaymentRepo {
 	db: db::PgPool,
 }
@@ -191,7 +223,7 @@ impl PaymentRepo {
 		PaymentRepo { db }
 	}
 	
-	pub fn create_payment(&self, new_payment: NewPayment) -> db::Result<LoanPayment> {
+	pub fn create(&self, new_payment: NewPayment) -> db::Result<LoanPayment> {
 		let conn = &self.db.get()?;
 		diesel::insert_into(loan_payments::table)
 			.values(&new_payment)
@@ -208,6 +240,7 @@ impl PaymentRepo {
 			.map_err(Into::into)
 	}
 	
+	/// Finds the first unpaid loan payment due
 	pub fn find_first_unpaid(&self, loan_id: &Id) -> db::Result<LoanPayment> {
 		let conn = &self.db.get()?;
 		loan_payments::table
@@ -221,6 +254,7 @@ impl PaymentRepo {
 			.map_err(Into::into)
 	}
 	
+	/// Finds the most recently paid loan payment
 	pub fn find_last_paid(&self, loan_id: &Id) -> db::Result<LoanPayment> {
 		let conn = &self.db.get()?;
 		loan_payments::table
@@ -247,6 +281,7 @@ impl PaymentRepo {
 			.map_err(Into::into)
 	}
 	
+	/// Updates the principal and interest due on the loan payment
 	pub fn set_dues(&self, id: &Id, principal_due: &BigDecimal, interest_due: &BigDecimal) -> db::Result<LoanPayment> {
 		let conn = &self.db.get()?;
 		diesel::update(loan_payments::table)
@@ -288,7 +323,7 @@ mod tests {
 		}).unwrap();
 		
 		// create loan payment
-		let loan_payment = suite.loan_payment_repo.create_payment(NewPayment {
+		let loan_payment = suite.loan_payment_repo.create(NewPayment {
 			loan_id: loan.id,
 			principal_due: Default::default(),
 			interest_due: Default::default(),
