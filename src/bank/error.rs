@@ -3,7 +3,7 @@ use std::fmt;
 
 use crate::{account, db};
 
-/// An error that can occur when interacting with
+/// An error that can occur when interacting with this module
 #[derive(Debug, PartialEq)]
 pub struct Error {
 	kind: ErrorKind,
@@ -19,7 +19,6 @@ impl Error {
 	}
 }
 
-/// The kind of an error that can occur.
 #[derive(Debug, PartialEq)]
 pub enum ErrorKind {
 	Database(db::Error),
