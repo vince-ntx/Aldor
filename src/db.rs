@@ -43,7 +43,7 @@ pub enum Error {
 	RecordAlreadyExists,
 	RecordNotFound,
 	Connection(String),
-	/// Used as a catch-all for
+	/// Catches and wraps all other database errors
 	DatabaseError(diesel::result::Error),
 }
 
