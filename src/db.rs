@@ -26,6 +26,17 @@ pub fn pg_connection() -> PgPool {
 	pool
 }
 
+#[cfg(test)]
+mod tests {
+	use crate::db::pg_connection;
+	
+	#[test]
+	fn connection() {
+		let pool = pg_connection();
+		pool.get().expect("get a db connection");
+	}
+}
+
 /// Error that can occur when querying against the database
 #[derive(Debug, PartialEq)]
 pub enum Error {
